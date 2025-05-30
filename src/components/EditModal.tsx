@@ -31,7 +31,7 @@ const EditModal: React.FC<EditModalProps> = ({
   onTextChange,
   onDescriptionChange,
   onColorChange,
-  onTagsChange,
+//   onTagsChange,
   onNewTagChange,
   onAddTag,
   onRemoveTag,

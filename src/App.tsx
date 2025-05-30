@@ -5,7 +5,6 @@ import EditModal from "./components/EditModal";
 import TagColorMenu from "./components/TagColorMenu";
 import Sidebar from "./components/Sidebar";
 import type { Box as BoxType, TagColorMenuState } from "./components/types";
-import { colors, colorNames } from "./components/types";
 
 // Local Storage Helpers
 const LOCAL_STORAGE_KEY = "box-data";
@@ -72,7 +71,7 @@ export default function Space() {
   const [editDescription, setEditDescription] = useState("");
   const [editColor, setEditColor] = useState("");
   const [editTags, setEditTags] = useState<string[]>([]);
-  const [tagColor, setTagColor] = useState<string[]>([]);
+  // const [tagColor, setTagColor] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");

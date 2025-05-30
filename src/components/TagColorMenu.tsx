@@ -14,7 +14,7 @@ const TagColorMenu: React.FC<TagColorMenuProps> = ({
   x, 
   y, 
   onColorSelect, 
-  onClose 
+//   onClose 
 }) => {
   return (
     <div

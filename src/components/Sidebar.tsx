@@ -32,7 +32,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onTagRightClick,
   onNavigateToBox,
   onReorderBoxes,
-  onStartEditing
 }) => {
   return (
     <div className="fixed right-4 top-4 bottom-4 w-72 bg-white rounded-lg shadow-lg z-50 flex flex-col">
@@ -129,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               const clampedIndex = Math.max(0, Math.min(visibleBoxes.length - 1, newIndex));
               
               if (clampedIndex !== index) {
-                const currentOrder = visibleBoxes.map(b => b.id);
+                // const currentOrder = visibleBoxes.map(b => b.id);
                 const originalIndex = boxOrder.indexOf(box.id);
                 const targetBox = visibleBoxes[clampedIndex];
                 const targetIndex = boxOrder.indexOf(targetBox.id);
