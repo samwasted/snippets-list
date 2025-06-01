@@ -6,6 +6,7 @@ export type Box = {
   label: string;
   description: string;
   tags: string[];
+  files?: File[]; //added file support
 };
 
 export type TagColorMenuState = {
