@@ -96,7 +96,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               />
             ))}
             {visibleBoxes.length > 8 && (
-              //limit visible boxes yaha se
               <div className="text-xs text-gray-500 text-center">
                 +{visibleBoxes.length - 8} more
               </div>
@@ -199,35 +198,38 @@ const Sidebar: React.FC<SidebarProps> = ({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
-                  drag="y"
-                  dragConstraints={{ top: 0, bottom: 0 }}
-                  dragElastic={0.1}
-                  onDragEnd={(_, info) => {
-                    const draggedDistance = info.offset.y;
-                    const itemHeight = 80;
-                    const newIndex = Math.round(draggedDistance / itemHeight) + index;
-                    const clampedIndex = Math.max(0, Math.min(visibleBoxes.length - 1, newIndex));
-                    
-                    if (clampedIndex !== index) {
-                      const originalIndex = boxOrder.indexOf(box.id);
-                      const targetBox = visibleBoxes[clampedIndex];
-                      const targetIndex = boxOrder.indexOf(targetBox.id);
-                      
-                      if (originalIndex !== -1 && targetIndex !== -1) {
-                        onReorderBoxes(originalIndex, targetIndex);
-                      }
-                    }
-                  }}
-                  whileDrag={{ scale: 1.02, zIndex: 1000, rotate: 1 }}
                   className="group"
                 >
                   <div
                     onDoubleClick={() => onNavigateToBox(box)}
                     className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-all border border-gray-100 bg-white hover:shadow-sm"
                   >
-                    <div className="flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <GripVertical className="w-4 h-4 text-gray-400 cursor-grab active:cursor-grabbing" />
-                    </div>
+                    {/* Drag handle - only this area is draggable */}
+                    <motion.div
+                      drag="y"
+                      dragConstraints={{ top: 0, bottom: 0 }}
+                      dragElastic={0.1}
+                      onDragEnd={(_, info) => {
+                        const draggedDistance = info.offset.y;
+                        const itemHeight = 80;
+                        const newIndex = Math.round(draggedDistance / itemHeight) + index;
+                        const clampedIndex = Math.max(0, Math.min(visibleBoxes.length - 1, newIndex));
+                        
+                        if (clampedIndex !== index) {
+                          const originalIndex = boxOrder.indexOf(box.id);
+                          const targetBox = visibleBoxes[clampedIndex];
+                          const targetIndex = boxOrder.indexOf(targetBox.id);
+                          
+                          if (originalIndex !== -1 && targetIndex !== -1) {
+                            onReorderBoxes(originalIndex, targetIndex);
+                          }
+                        }
+                      }}
+                      whileDrag={{ scale: 1.1, zIndex: 1000 }}
+                      className="flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1 -m-1 rounded hover:bg-gray-200"
+                    >
+                      <GripVertical className="w-4 h-4 text-gray-400" />
+                    </motion.div>
                     
                     <div className="flex flex-col gap-2 flex-1 min-w-0">
                       <div className="flex items-center gap-3">
@@ -296,7 +298,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="grid grid-cols-2 gap-1 text-xs text-gray-600">
               <div>• Drag to move boxes</div>
               <div>• Double-click to edit</div>
-              <div>• Drag items to reorder</div>
+              <div>• Drag grip to reorder</div>
               <div>• Right-click tags</div>
               <div>• Mouse wheel to zoom</div>
               <div>• Drag background to pan</div>
