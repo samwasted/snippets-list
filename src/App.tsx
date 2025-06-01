@@ -4,7 +4,7 @@ import Box from "./components/Box";
 import EditModal from "./components/EditModal";
 import TagColorMenu from "./components/TagColorMenu";
 import Sidebar from "./components/Sidebar";
-import type { Box as BoxType, TagColorMenuState } from "./components/types";
+import { colorNames, colors, type Box as BoxType, type TagColorMenuState } from "./components/types";
 // import Line from "./line";
 //CANT KEEP UNUSED IMPORTS IN TS
 
@@ -142,14 +142,17 @@ export default function Space() {
     panY.set(0);
   };
 
+  console.log(colors)
+  console.log(colorNames)
   // Add new box
   const addBox = () => {
-    const spawnColor = "bg-gray-400";
+    // const spawnColor = "bg-gray-400";
+    const randomColor = colors[Math.ceil(Math.random()*colors.length)]
     const newBox: BoxType = {
       id: String(nextBoxId),
       x: Math.random() * 400 + 200,
       y: Math.random() * 400 + 200,
-      color: spawnColor,
+      color: randomColor,
       label: `Box ${nextBoxId}`,
       description: "",
       tags: []
