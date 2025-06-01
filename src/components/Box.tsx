@@ -60,9 +60,6 @@ const Box: React.FC<BoxProps> = ({
         )}
       </div>
       
-      <div className="text-xs text-white/70 text-center pb-2">
-        Double-click to edit
-      </div>
     </motion.div>
   );
 };

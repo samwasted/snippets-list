@@ -1,6 +1,10 @@
 import React from "react";
 import { colors, colorNames } from "./types";
 
+
+// get all colors from the constant colors and add them to the option
+//would look beautiful 
+
 interface TagColorMenuProps {
   tag: string;
   x: number;
@@ -14,7 +18,6 @@ const TagColorMenu: React.FC<TagColorMenuProps> = ({
   x, 
   y, 
   onColorSelect, 
-//   onClose 
 }) => {
   return (
     <div
@@ -24,7 +27,7 @@ const TagColorMenu: React.FC<TagColorMenuProps> = ({
         top: y,
         transform: 'translate(-50%, -10px)'
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()} //prevention of bugs
     >
       <div className="text-sm font-medium text-gray-700 mb-2">
         Change color for tag: <span className="font-semibold text-blue-600">"{tag}"</span>
@@ -36,6 +39,7 @@ const TagColorMenu: React.FC<TagColorMenuProps> = ({
             onClick={() => onColorSelect(tag, color)}
             className={`w-8 h-8 rounded ${color} border-2 border-gray-300 hover:border-gray-500 transition-all hover:scale-110`}
             title={colorNames[color as keyof typeof colorNames]}
+            // typeof fixes the bugs, ig ts specific it is
           />
         ))}
       </div>

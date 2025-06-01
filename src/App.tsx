@@ -5,6 +5,8 @@ import EditModal from "./components/EditModal";
 import TagColorMenu from "./components/TagColorMenu";
 import Sidebar from "./components/Sidebar";
 import type { Box as BoxType, TagColorMenuState } from "./components/types";
+// import Line from "./line";
+//CANT KEEP UNUSED IMPORTS IN TS
 
 // Local Storage Helpers
 const LOCAL_STORAGE_KEY = "box-data";
@@ -26,6 +28,7 @@ const loadFromLocalStorage = (): { boxes: BoxType[]; nextBoxId: number; boxOrder
 
 export default function Space() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   // Load persisted data
   const initialData = loadFromLocalStorage();
@@ -37,6 +40,7 @@ export default function Space() {
 
   // Boxes and links
   const [boxes, setBoxes] = useState<BoxType[]>(
+    // make this if no data available, added to test
     initialData?.boxes || [
       { 
         id: "1", 
@@ -58,7 +62,7 @@ export default function Space() {
       },
     ]
   );
-  const [nextBoxId, setNextBoxId] = useState<number>(initialData?.nextBoxId || 4);
+  const [nextBoxId, setNextBoxId] = useState<number>(initialData?.nextBoxId || 3);  //start from 3rd box by default
   const [boxOrder, setBoxOrder] = useState<string[]>(initialData?.boxOrder || []);
 
   // Persist state changes
@@ -71,7 +75,6 @@ export default function Space() {
   const [editDescription, setEditDescription] = useState("");
   const [editColor, setEditColor] = useState("");
   const [editTags, setEditTags] = useState<string[]>([]);
-  // const [tagColor, setTagColor] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,10 +115,27 @@ export default function Space() {
     }
   }, [tagColorMenu.show]);
 
-  // Zoom handlers
+  // Zoom handlers - only zoom when on canvas
+  const handleWheel = (e: React.WheelEvent) => {
+    // Check if the wheel event is coming from the canvas area (not sidebar or other UI)
+    const target = e.target as HTMLElement;
+    const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
+    
+    if (!isOnCanvas) {
+      // Allow natural scrolling for non-canvas elements
+      return;
+    }
+    
+    // Prevent default zoom behavior and implement custom zoom
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
+  };
+
   const zoom = (delta: number) => {
     setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
   };
+
   const reset = () => {
     setScale(1);
     panX.set(0);
@@ -291,16 +311,17 @@ export default function Space() {
   return (
     <div
       ref={containerRef}
-      className="w-screen h-screen bg-gray-100 relative overflow-hidden pr-80"
-      onWheel={(e) => { e.preventDefault(); zoom(e.deltaY > 0 ? -0.1 : 0.1); }}
+      className="w-screen h-screen bg-gray-300 relative overflow-hidden"
+      onWheel={handleWheel}
     >
       {/* Controls */}
       <div className="fixed top-4 left-4 z-50 flex gap-2">
         <button onClick={() => zoom(0.2)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">+</button>
         <button onClick={() => zoom(-0.2)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">-</button>
-        <button onClick={reset} className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">Reset</button>
+        <button onClick={reset} className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">Recenter</button>
         <button onClick={addBox} className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">Add Box</button>
       </div>
+
       {/* Tag Color Menu */}
       {tagColorMenu.show && (
         <TagColorMenu 
@@ -311,6 +332,7 @@ export default function Space() {
           onClose={() => setTagColorMenu({ show: false, tag: "", x: 0, y: 0 })}
         />
       )}
+
       {/* Edit Modal */}
       {editingBox && (
         <EditModal 
@@ -333,7 +355,8 @@ export default function Space() {
           onDelete={deleteBox}
         />
       )}
-      {/* Enhanced Sidebar */}
+
+      {/*Sidebar */}
       <Sidebar 
         boxes={boxes}
         visibleBoxes={visibleBoxes}
@@ -349,13 +372,17 @@ export default function Space() {
         onReorderBoxes={reorderBoxes}
         onStartEditing={startEditing}
       />
-      {/* Pan container */}
+
+      {/*Canvas - Pan container */}
       <motion.div
+        ref={canvasRef}
         style={{ scale, x: panX, y: panY }}
         drag
         dragConstraints={{ left: -2000, right: 2000, top: -2000, bottom: 2000 }}
         className="w-full h-full"
+
       >
+        {/* <Line x1={boxes[0].x} y1={boxes[0].y} x2={boxes[1].x} y2={boxes[1].y} stroke="red" strokeWidth= {3} /> */}
         {/* Boxes */}
         {visibleBoxes.map(box => (
           <Box 
@@ -367,6 +394,9 @@ export default function Space() {
             onTagRightClick={handleTagRightClick}
           />
         ))}
+        {/* Linking lines add karde idar logic */}
+         
+         {/* framer-motion is causing issues */}
       </motion.div>
     </div>
   );
