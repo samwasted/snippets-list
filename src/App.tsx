@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { motion, useMotionValue } from "framer-motion";
+import { motion, useMotionValue, animate } from "framer-motion";
 import Box from "./components/Box";
 import EditModal from "./components/EditModal";
 import TagColorMenu from "./components/TagColorMenu";
@@ -248,13 +248,13 @@ export default function Space() {
   };
 
   // Navigate to box
-  const navigateToBox = (box: BoxType) => {
-    const centerX = -box.x * scale + window.innerWidth / 2 - 96;
-    const centerY = -box.y * scale + window.innerHeight / 2 - 64;
-    panX.set(centerX);
-    panY.set(centerY);
-  };
+const navigateToBox = (box: BoxType) => {
+  const centerX = -box.x * scale + window.innerWidth / 2 - 96;
+  const centerY = -box.y * scale + window.innerHeight / 2 - 64;
 
+  animate(panX, centerX, { type: "spring", stiffness: 100, damping: 20 });
+  animate(panY, centerY, { type: "spring", stiffness: 100, damping: 20 });
+};
   // Filter functions
   const toggleTagFilter = (tag: string) => {
     setTagFilters(prev => {
@@ -381,7 +381,8 @@ export default function Space() {
         ref={canvasRef}
         style={{ scale, x: panX, y: panY }}
         drag
-        dragConstraints={{ left: -2000, right: 2000, top: -2000, bottom: 2000 }}
+        // dragConstraints={{ left: -2000, right: 2000, top: -2000, bottom: 2000 }}
+          //this might fix drag constraints, handle them better
         className="w-full h-full"
 
       >
@@ -400,6 +401,8 @@ export default function Space() {
         {/* Linking lines add karde idar logic */}
          
          {/* framer-motion is causing issues */}
+
+       
       </motion.div>
     </div>
   );
