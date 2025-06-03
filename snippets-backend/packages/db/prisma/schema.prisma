@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String              @id @default(cuid())
+  email         String              @unique
+  name          String?
+  password      String?
+  createdAt     DateTime            @default(now())
+  spaces        Space[]             @relation("OwnedSpaces")
+  snippets      Snippet[]
+  collaborations SpaceCollaborator[]
+  spaceViews    SpaceView[]
+  snippetViews  SnippetView[]
+  @@map("users")
+}
+
+model Space {
+  id            String              @id @default(cuid())
+  name          String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  ownerId       String
+  isPublic      Boolean             @default(false)
+  totalViews    Int                 @default(0)
+  snippets      Snippet[]
+  order         String[]            @default([]) // Store snippet IDs for sidebar order
+  owner         User                @relation("OwnedSpaces", fields: [ownerId], references: [id])
+  collaborators SpaceCollaborator[]
+  views         SpaceView[]
+}
+
+model Snippet {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  code        String?
+  tags        String[]      @default([])
+  color       String?       // hex code or named color
+  files       String[]      @default([])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  ownerId     String
+  spaceId     String?
+  x           Int
+  y           Int
+  totalViews  Int           @default(0)
+  owner       User          @relation(fields: [ownerId], references: [id])
+  space       Space?        @relation(fields: [spaceId], references: [id])
+  views       SnippetView[]
+}
+
+model SpaceCollaborator {
+  id      String @id @default(cuid())
+  spaceId String
+  userId  String
+  role    Role   @default(EDITOR)
+  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([spaceId, userId])
+}
+
+enum Role {
+  VIEWER
+  EDITOR
+  ADMIN
+}
+
+model SpaceView {
+  id        String   @id @default(cuid())
+  spaceId   String
+  userId    String?  // null for anonymous views
+  viewedAt  DateTime @default(now())
+  ipAddress String?  // for anonymous tracking
+  userAgent String?  // browser/device info
+  space     Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([spaceId, viewedAt])
+  @@index([userId])
+}
+
+model SnippetView {
+  id        String   @id @default(cuid())
+  snippetId String
+  userId    String?  // null for anonymous views
+  viewedAt  DateTime @default(now())
+  ipAddress String?  // for anonymous tracking
+  userAgent String?  // browser/device info
+  snippet   Snippet  @relation(fields: [snippetId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([snippetId, viewedAt])
+  @@index([userId])
+}
