@@ -54,6 +54,10 @@ const Box: React.FC<BoxProps> = ({
       const newFiles = [...existingFiles, ...selectedFiles];
       onFilesChanged(box.id, newFiles);
     }
+    // Clear the input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleRemoveFile = (fileIndex: number) => {
@@ -62,13 +66,49 @@ const Box: React.FC<BoxProps> = ({
     onFilesChanged(box.id, newFiles);
   };
 
-  const handleDownloadFile = (file: File) => {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownloadFile = async (file: File) => {
+    try {
+      // Check if it's a proper File object
+      if (!(file instanceof File)) {
+        console.error('Invalid file object:', file);
+        return;
+      }
+
+      // Create blob URL
+      const blob = new Blob([file], { type: file.type || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create download link
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name || 'download';
+      a.style.display = 'none';
+      
+      // Add to DOM, click, and remove
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Clean up the URL
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      
+      // Fallback: try to open file in new tab
+      try {
+        const url = URL.createObjectURL(file);
+        window.open(url, '_blank');
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 1000);
+      } catch (fallbackError) {
+        console.error('Fallback download also failed:', fallbackError);
+        alert('Unable to download file. Please try again.');
+      }
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -134,7 +174,7 @@ const Box: React.FC<BoxProps> = ({
                         e.stopPropagation();
                         handleDownloadFile(file);
                       }}
-                      className="text-white/70 hover:text-white text-xs"
+                      className="text-white/70 hover:text-white text-xs px-1 py-0.5 rounded hover:bg-white/10"
                       title="Download"
                     >
                       ↓
@@ -144,7 +184,7 @@ const Box: React.FC<BoxProps> = ({
                         e.stopPropagation();
                         handleRemoveFile(index);
                       }}
-                      className="text-white/70 hover:text-white text-xs"
+                      className="text-white/70 hover:text-white text-xs px-1 py-0.5 rounded hover:bg-white/10"
                       title="Remove"
                     >
                       ×
