@@ -9,7 +9,8 @@ datasource db {
 
 model User {
   id            String              @id @default(cuid())
-  email         String              @unique
+  username         String              @unique
+  role          UserRole          @default(USER)
   name          String?
   password      String?
   createdAt     DateTime            @default(now())
@@ -70,6 +71,10 @@ model SpaceCollaborator {
 enum Role {
   VIEWER
   EDITOR
+  ADMIN
+}
+enum UserRole {
+  USER
   ADMIN
 }
 
