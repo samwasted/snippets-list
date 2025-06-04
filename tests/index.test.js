@@ -87,6 +87,8 @@ describe("Authentication", () => {
 
         expect(response.status).toBe(200)
         expect(response.data.token).toBeDefined()
+        console.log("token: " + response.data.token)
+        console.log(response.data)
 
     })
 

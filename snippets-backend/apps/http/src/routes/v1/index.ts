@@ -11,7 +11,7 @@ import { JWT_PASSWORD } from "../../config";
 export const router = Router()
 
 // Authentication routes
-router.post("/signup", async (req, res) => {
+router.post("/signup", async (req, res) => { //validated
     const parsedData = SignupSchema.safeParse(req.body)
     if (!parsedData.success) {
         res.status(400).json({ message: "Validation failed" })
@@ -41,7 +41,7 @@ router.post("/signup", async (req, res) => {
     }
 })
 
-router.post("/signin", async (req, res) => {
+router.post("/signin", async (req, res) => { //validated
     const parsedData = SigninSchema.safeParse(req.body)
     if (!parsedData.success) {
         res.status(400).json({ message: "Validation failed" })
@@ -91,7 +91,7 @@ router.post("/signout", async (req, res) => {
     })
 })
 
-router.post("/refresh-token", async (req, res) => {
+router.post("/refresh-token", async (req, res) => { //validated
     const header = req.headers["authorization"]
     const token = header?.split(" ")[1]
 
@@ -135,7 +135,7 @@ router.post("/refresh-token", async (req, res) => {
     }
 })
 
-router.get("/search/spaces", async (req, res) => {
+router.get("/search/spaces", async (req, res) => { //validated
     const { q, page = 1, limit = 10 } = req.query
     const { page: validPage, limit: validLimit } = PaginationSchema.parse({ page, limit })
     const skip = (validPage - 1) * validLimit
@@ -300,7 +300,7 @@ router.get("/search/spaces", async (req, res) => {
 })
 
 // Health check route
-router.get("/health", (req, res) => {
+router.get("/health", (req, res) => { //validated
     res.json({ 
         status: "ok", 
         timestamp: new Date().toISOString(),
