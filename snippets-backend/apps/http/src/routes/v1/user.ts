@@ -14,26 +14,41 @@ export const userRouter = Router();
 
 
 // User metadata (using User table fields directly since no UserMetadata table exists)
-userRouter.post("/metadata", userMiddleware, async (req, res) => {
+userRouter.post("/metadata", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
-    
-    // Update user record with metadata fields
-    const user = await client.user.update({
-        where: { id: userId },
-        data: req.body,
-        select: {
-            id: true,
-            username: true,
-            name: true,
-            role: true,
-            createdAt: true
-        }
-    });
-    
-    res.status(201).json({ message: "User metadata updated successfully", user });
+
+    const { username, name } = req.body; //only allow username and name to be changed
+
+    const updateData: { username?: string; name?: string } = {};
+    if (username !== undefined) updateData.username = username;
+    if (name !== undefined) updateData.name = name;
+
+    if (Object.keys(updateData).length === 0) {
+        res.status(400).json({ message: "No valid fields provided for update" });
+        return
+    }
+
+    try {
+        const user = await client.user.update({
+            where: { id: userId },
+            data: updateData,
+            select: {
+                id: true,
+                username: true,
+                name: true,
+                role: true,
+                createdAt: true
+            }
+        });
+
+        res.status(200).json({ message: "User metadata updated successfully", user });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to update user metadata" });
+    }
 });
 
-userRouter.get("/metadata", userMiddleware, async (req, res) => {
+
+userRouter.get("/metadata", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     
     const user = await client.user.findUnique({
@@ -50,25 +65,8 @@ userRouter.get("/metadata", userMiddleware, async (req, res) => {
     res.json({ metadata: user });
 });
 
-userRouter.put("/metadata", userMiddleware, async (req, res) => {
-    const userId = req.userId!;
-    
-    const user = await client.user.update({
-        where: { id: userId },
-        data: req.body,
-        select: {
-            id: true,
-            username: true,
-            name: true,
-            role: true,
-            createdAt: true
-        }
-    });
-    
-    res.json({ message: "User metadata updated successfully", metadata: user });
-});
 
-userRouter.get("/metadata/bulk", userMiddleware, async (req, res) => {
+userRouter.get("/metadata/bulk", userMiddleware, async (req, res) => { //validated
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
@@ -91,7 +89,7 @@ userRouter.get("/metadata/bulk", userMiddleware, async (req, res) => {
 });
 
 // User profile
-userRouter.get("/profile", userMiddleware, async (req, res) => {
+userRouter.get("/profile", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     
     const user = await client.user.findUnique({
@@ -108,27 +106,9 @@ userRouter.get("/profile", userMiddleware, async (req, res) => {
     res.json({ user });
 });
 
-userRouter.put("/profile", userMiddleware, async (req, res) => {
-    const userId = req.userId!;
-    const validatedData = UpdateUserProfileSchema.parse(req.body);
-    
-    const user = await client.user.update({
-        where: { id: userId },
-        data: validatedData,
-        select: {
-            id: true,
-            username: true,
-            name: true,
-            role: true,
-            createdAt: true
-        }
-    });
-    
-    res.json({ message: "Profile updated successfully", user });
-});
 
 // Change password
-userRouter.put("/password", userMiddleware, async (req, res) => {
+userRouter.put("/password", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { currentPassword, newPassword } = ChangePasswordSchema.parse(req.body);
     
@@ -153,7 +133,7 @@ userRouter.put("/password", userMiddleware, async (req, res) => {
 });
 
 // User spaces
-userRouter.get("/spaces", userMiddleware, async (req, res) => {
+userRouter.get("/spaces", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
@@ -180,7 +160,7 @@ userRouter.get("/spaces", userMiddleware, async (req, res) => {
     });
 });
 
-userRouter.get("/spaces/collaborating", userMiddleware, async (req, res) => {
+userRouter.get("/spaces/collaborating", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
@@ -218,7 +198,7 @@ userRouter.get("/spaces/collaborating", userMiddleware, async (req, res) => {
 });
 
 // User snippets
-userRouter.get("/snippets", userMiddleware, async (req, res) => {
+userRouter.get("/snippets", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
@@ -245,7 +225,7 @@ userRouter.get("/snippets", userMiddleware, async (req, res) => {
 });
 
 // User analytics
-userRouter.get("/analytics/views", userMiddleware, async (req, res) => {
+userRouter.get("/analytics/views", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { startDate, endDate, groupBy } = AnalyticsQuerySchema.parse(req.query);
     
@@ -294,7 +274,7 @@ userRouter.get("/analytics/views", userMiddleware, async (req, res) => {
     });
 });
 
-userRouter.get("/analytics/activity", userMiddleware, async (req, res) => {
+userRouter.get("/analytics/activity", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { startDate, endDate } = AnalyticsQuerySchema.parse(req.query);
     
