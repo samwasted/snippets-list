@@ -48,7 +48,7 @@ const checkSpaceAccess = async (spaceId: string, userId: string, requiredRole: '
 };
 
 // Space CRUD
-spaceRouter.post("/", userMiddleware, async (req, res) => {
+spaceRouter.post("/", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const validatedData = CreateSpaceSchema.parse(req.body);
     
@@ -70,7 +70,8 @@ spaceRouter.post("/", userMiddleware, async (req, res) => {
     res.status(201).json({ message: "Space created successfully", space });
 });
 
-spaceRouter.get("/all", userMiddleware, async (req, res) => {
+// all spaces of authenticated user
+spaceRouter.get("/all", userMiddleware, async (req, res) => { //validated 
     const userId = req.userId!;
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
@@ -99,7 +100,8 @@ spaceRouter.get("/all", userMiddleware, async (req, res) => {
     res.json({ spaces, pagination: { page, limit } });
 });
 
-spaceRouter.get("/public", async (req, res) => {
+
+spaceRouter.get("/public", async (req, res) => { //validated
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
@@ -121,7 +123,7 @@ spaceRouter.get("/public", async (req, res) => {
     res.json({ spaces: publicSpaces, pagination: { page, limit } });
 });
 
-spaceRouter.get("/:spaceId", userMiddleware, async (req, res) => {
+spaceRouter.get("/:id", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     
@@ -177,7 +179,7 @@ spaceRouter.get("/:spaceId", userMiddleware, async (req, res) => {
     res.json({ space: spaceDetails, userRole: access.role });
 });
 
-spaceRouter.put("/:spaceId", userMiddleware, async (req, res) => {
+spaceRouter.put("/:id", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     const validatedData = UpdateSpaceSchema.parse(req.body);
@@ -201,7 +203,7 @@ spaceRouter.put("/:spaceId", userMiddleware, async (req, res) => {
     res.json({ message: "Space updated successfully", space });
 });
 
-spaceRouter.delete("/:spaceId", userMiddleware, async (req, res) => {
+spaceRouter.delete("/:id", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     
@@ -222,7 +224,7 @@ spaceRouter.delete("/:spaceId", userMiddleware, async (req, res) => {
 });
 
 // Snippet management within space
-spaceRouter.post("/:spaceId/snippet", userMiddleware, async (req, res) => {
+spaceRouter.post("/:id/snippet", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     const validatedData = CreateSnippetSchema.parse(req.body);
@@ -244,7 +246,7 @@ spaceRouter.post("/:spaceId/snippet", userMiddleware, async (req, res) => {
     res.status(201).json({ message: "Snippet created successfully", snippet });
 });
 
-spaceRouter.get("/:spaceId/snippets", userMiddleware, async (req, res) => {
+spaceRouter.get("/:id/snippets", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     
@@ -267,9 +269,9 @@ spaceRouter.get("/:spaceId/snippets", userMiddleware, async (req, res) => {
     res.json({ snippets });
 });
 
-spaceRouter.put("/:spaceId/snippet/:snippetId", userMiddleware, async (req, res) => {
+spaceRouter.put("/:id/snippet/:snippetId", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
-    const { spaceId, snippetId } = req.params;
+    const { id: spaceId, snippetId } = req.params;
     const validatedData = UpdateSnippetSchema.parse(req.body);
     
     const access = await checkSpaceAccess(spaceId, userId, 'EDITOR');
@@ -295,9 +297,9 @@ spaceRouter.put("/:spaceId/snippet/:snippetId", userMiddleware, async (req, res)
     res.json({ message: "Snippet updated successfully", snippet: updatedSnippet });
 });
 
-spaceRouter.delete("/:spaceId/snippet/:snippetId", userMiddleware, async (req, res) => {
+spaceRouter.delete("/:id/snippet/:snippetId", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
-    const { spaceId, snippetId } = req.params;
+    const { id: spaceId, snippetId } = req.params;
     
     const access = await checkSpaceAccess(spaceId, userId, 'EDITOR');
     if (!access) {
@@ -322,10 +324,10 @@ spaceRouter.delete("/:spaceId/snippet/:snippetId", userMiddleware, async (req, r
 });
 
 // Collaborator management
-spaceRouter.post("/:spaceId/collaborators", userMiddleware, async (req, res) => {
+spaceRouter.post("/:id/collaborators", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
-    const { email, role } = AddCollaboratorSchema.parse(req.body);
+    const { username, role } = AddCollaboratorSchema.parse(req.body);
     
     const space = await client.space.findUnique({
         where: { id: spaceId }
@@ -333,16 +335,37 @@ spaceRouter.post("/:spaceId/collaborators", userMiddleware, async (req, res) => 
     
     if (!space || space.ownerId !== userId) {
         res.status(403).json({ message: "Only space owner can add collaborators" });
-        return 
+        return;
     }
     
     const collaboratorUser = await client.user.findUnique({
-        where: { username: email } // Assuming email is actually username
+        where: { username: username } 
     });
     
     if (!collaboratorUser) {
         res.status(404).json({ message: "User not found" });
-        return 
+        return;
+    }
+    
+    // Check if user is trying to add themselves (the owner) as a collaborator
+    if (collaboratorUser.id === userId) {
+        res.status(400).json({ message: "Cannot add space owner as a collaborator" });
+        return;
+    }
+    
+    // Check if user is already a collaborator
+    const existingCollaborator = await client.spaceCollaborator.findUnique({
+        where: {
+            spaceId_userId: {
+                spaceId: spaceId,
+                userId: collaboratorUser.id
+            }
+        }
+    });
+    
+    if (existingCollaborator) {
+        res.status(400).json({ message: "User is already a collaborator" });
+        return;
     }
     
     const collaborator = await client.spaceCollaborator.create({
@@ -360,8 +383,7 @@ spaceRouter.post("/:spaceId/collaborators", userMiddleware, async (req, res) => 
     
     res.status(201).json({ message: "Collaborator added successfully", collaborator });
 });
-
-spaceRouter.get("/:spaceId/collaborators", userMiddleware, async (req, res) => {
+spaceRouter.get("/:id/collaborators", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     
@@ -383,9 +405,9 @@ spaceRouter.get("/:spaceId/collaborators", userMiddleware, async (req, res) => {
     res.json({ collaborators });
 });
 
-spaceRouter.put("/:spaceId/collaborators/:userId", userMiddleware, async (req, res) => {
+spaceRouter.put("/:id/collaborators/:userId", userMiddleware, async (req, res) => {
     const currentUserId = req.userId!;
-    const { spaceId, userId: collaboratorUserId } = req.params;
+    const { id: spaceId, userId: collaboratorUserId } = req.params;
     const { role } = UpdateCollaboratorRoleSchema.parse(req.body);
     
     const space = await client.space.findUnique({
@@ -416,9 +438,9 @@ spaceRouter.put("/:spaceId/collaborators/:userId", userMiddleware, async (req, r
     res.json({ message: "Collaborator role updated successfully", collaborator });
 });
 
-spaceRouter.delete("/:spaceId/collaborators/:userId", userMiddleware, async (req, res) => {
+spaceRouter.delete("/:id/collaborators/:userId", userMiddleware, async (req, res) => { //validated
     const currentUserId = req.userId!;
-    const { spaceId, userId: collaboratorUserId } = req.params;
+    const { id: spaceId, userId: collaboratorUserId } = req.params;
     
     const space = await client.space.findUnique({
         where: { id: spaceId }
@@ -442,7 +464,7 @@ spaceRouter.delete("/:spaceId/collaborators/:userId", userMiddleware, async (req
 });
 
 // Space visibility
-spaceRouter.put("/:spaceId/visibility", userMiddleware, async (req, res) => {
+spaceRouter.put("/:id/visibility", userMiddleware, async (req, res) => { //though the update space does this well, but ok //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     const { isPublic } = UpdateSpaceVisibilitySchema.parse(req.body);
@@ -465,7 +487,7 @@ spaceRouter.put("/:spaceId/visibility", userMiddleware, async (req, res) => {
 });
 
 // Space analytics
-spaceRouter.get("/:spaceId/analytics", userMiddleware, async (req, res) => {
+spaceRouter.get("/:id/analytics", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     const { startDate, endDate, groupBy } = AnalyticsQuerySchema.parse(req.query);
@@ -511,7 +533,8 @@ spaceRouter.get("/:spaceId/analytics", userMiddleware, async (req, res) => {
     });
 });
 
-spaceRouter.get("/:spaceId/views", userMiddleware, async (req, res) => {
+//names of those who viewed, gets their data
+spaceRouter.get("/:id/views", userMiddleware, async (req, res) => { //validated, need to check how to add views
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     const { page, limit } = PaginationSchema.parse(req.query);
@@ -539,7 +562,7 @@ spaceRouter.get("/:spaceId/views", userMiddleware, async (req, res) => {
 });
 
 // Space ordering (for snippets)
-spaceRouter.put("/:spaceId/order", userMiddleware, async (req, res) => {
+spaceRouter.put("/:id/order", userMiddleware, async (req, res) => {  //cant validate now, need to see it in frontend
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     const { order } = UpdateSpaceOrderSchema.parse(req.body);

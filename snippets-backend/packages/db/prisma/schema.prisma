@@ -30,6 +30,7 @@ model Space {
   ownerId       String
   isPublic      Boolean             @default(false)
   totalViews    Int                 @default(0)
+  description   String?
   snippets      Snippet[]
   order         String[]            @default([]) // Store snippet IDs for sidebar order
   owner         User                @relation("OwnedSpaces", fields: [ownerId], references: [id])
@@ -53,7 +54,7 @@ model Snippet {
   y           Int
   totalViews  Int           @default(0)
   owner       User          @relation(fields: [ownerId], references: [id])
-  space       Space?        @relation(fields: [spaceId], references: [id])
+  space       Space?        @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   views       SnippetView[]
 }
 

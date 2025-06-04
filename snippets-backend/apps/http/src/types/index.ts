@@ -20,7 +20,7 @@ export const RefreshTokenSchema = z.object({
 // User Schemas
 export const UpdateUserProfileSchema = z.object({
   name: z.string().min(1, "Name cannot be empty").optional(),
-  email: z.string().email("Invalid email format").optional(),
+  username: z.string().min(1, "Username is required").max(50, "Username too long")
   // image: z.string().url("Invalid image URL").optional()
 })
 
@@ -33,7 +33,7 @@ export const ChangePasswordSchema = z.object({
 // Space Schemas
 export const CreateSpaceSchema = z.object({
   name: z.string().min(1, "Space name is required").max(100, "Name too long"),
-  isPublic: z.boolean().default(false),
+  isPublic: z.boolean().default(true),
   description: z.string().max(500, "Description too long").optional()
 })
 
@@ -53,7 +53,7 @@ export const UpdateSpaceOrderSchema = z.object({
 
 // Collaborator Schemas
 export const AddCollaboratorSchema = z.object({
-  email: z.string().email("Invalid email format"),
+  username: z.string().min(1, "Username is required").max(50, "Username too long"),
   role: z.enum(["VIEWER", "EDITOR", "ADMIN"]).default("EDITOR")
 })
 
@@ -69,8 +69,8 @@ export const CreateSnippetSchema = z.object({
   tags: z.array(z.string()).max(10, "Too many tags").default([]),
   color: z.string().optional(),
   files: z.array(z.string().url("Invalid file URL")).max(5, "Too many files").default([]), //keep limits for supabase
-  x: z.number().int("X coordinate must be integer"),
-  y: z.number().int("Y coordinate must be integer"),
+  x: z.coerce.number().int("X coordinate must be integer"),
+  y: z.coerce.number().int("Y coordinate must be integer"),
   spaceId: z.string().optional()
 })
 
@@ -81,19 +81,19 @@ export const UpdateSnippetSchema = z.object({
   tags: z.array(z.string()).max(10, "Too many tags").optional(),
   color: z.string().optional(),
   files: z.array(z.string().url("Invalid file URL")).max(5, "Too many files").optional(), //keeping limits cuz supabase
-  x: z.number().int("X coordinate must be integer").optional(),
-  y: z.number().int("Y coordinate must be integer").optional()
+  x: z.coerce.number().int("X coordinate must be integer").optional(),
+  y: z.coerce.number().int("Y coordinate must be integer").optional()
 })
 
 export const AddSnippetToSpaceSchema = z.object({
   snippetId: z.string().min(1, "Snippet ID is required"),
-  x: z.number().int("X coordinate must be integer"),
-  y: z.number().int("Y coordinate must be integer")
+  x: z.coerce.number().int("X coordinate must be integer"),
+  y: z.coerce.number().int("Y coordinate must be integer")
 })
 
 export const MoveSnippetSchema = z.object({
-  x: z.number().int("X coordinate must be integer"),
-  y: z.number().int("Y coordinate must be integer")
+  x: z.coerce.number().int("X coordinate must be integer"),
+  y: z.coerce.number().int("Y coordinate must be integer")
 })
 
 // Search Schemas
@@ -101,8 +101,8 @@ export const SearchSchema = z.object({
   query: z.string().min(1, "Search query is required").max(100, "Query too long"),
   type: z.enum(["snippets", "spaces", "all"]).default("all"),
   tags: z.array(z.string()).optional(),
-  limit: z.number().int().min(1).max(50).default(20),
-  offset: z.number().int().default(0)
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().default(0)
 })
 
 // Analytics Schemas
@@ -122,7 +122,7 @@ export const AnalyticsQuerySchema = z.object({
 // Admin Schemas
 export const AdminUserUpdateSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
-  email: z.string().email("Invalid email format").optional(),
+  username: z.string().min(1, "Username is required").max(50, "Username too long"),
   type: z.enum(["user", "admin"]).optional()
 })
 
