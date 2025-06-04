@@ -2,16 +2,16 @@ import { Router } from "express";
 import { userRouter } from "./user";
 import { adminRouter } from "./admin";
 import { spaceRouter } from "./space";
-import { SigninSchema, SignupSchema } from "../../types";
+import { SigninSchema, SignupSchema, PaginationSchema } from "../../types";
 import { hash, compare } from "../../scrypt";
 import jwt from "jsonwebtoken"
 import client from "@repo/db"
 import { JWT_PASSWORD } from "../../config";
+
 export const router = Router()
 
 // Authentication routes
 router.post("/signup", async (req, res) => {
-    //check the user
     const parsedData = SignupSchema.safeParse(req.body)
     if (!parsedData.success) {
         res.status(400).json({ message: "Validation failed" })
@@ -26,12 +26,11 @@ router.post("/signup", async (req, res) => {
                 name: parsedData.data.name,
                 username: parsedData.data.username,
                 password: hashedPassword,
-                role: parsedData.data.type === "admin" ? "ADMIN" : "USER" //database requires "ADMIN" or "USER" 
+                role: parsedData.data.type === "admin" ? "ADMIN" : "USER"
             }
-
         })
         res.status(200).json({
-            userId: user.id //abhi ke liye yehi
+            userId: user.id
         })
 
     } catch (e) {
@@ -64,34 +63,249 @@ router.post("/signin", async (req, res) => {
             return
         }
         const token = jwt.sign(
-            { userId: user.id, role: user.role }, //payload
+            { userId: user.id, role: user.role },
             process.env.JWT_PASSWORD || JWT_PASSWORD)
 
         res.status(200).json({
-            token
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                name: user.name,
+                role: user.role
+            }
         })
     } catch (e) {
-    res.status(400).json({
-        message: "User already exists"
-    })
-}
+        res.status(400).json({
+            message: "Authentication failed"
+        })
+    }
 })
 
 router.post("/signout", async (req, res) => {
-    res.json({ message: "User Signout" })
+    // Since we're using stateless JWT, signout is handled client-side, we add delete token from local storage on frontend
+    // We could implement token blacklisting here if needed
+    res.json({ 
+        message: "Signed out successfully",
+        instruction: "Remove token from client storage"
+    })
 })
 
 router.post("/refresh-token", async (req, res) => {
-    res.json({ message: "Refresh Authentication Token" })
+    const header = req.headers["authorization"]
+    const token = header?.split(" ")[1]
+
+    if (!token) {
+        res.status(401).json({ message: "No token provided" })
+        return
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_PASSWORD) as { userId: string, role: string }
+        
+        // Verify user still exists and get updated info
+        const user = await client.user.findUnique({
+            where: { id: decoded.userId },
+            select: {
+                id: true,
+                username: true,
+                name: true,
+                role: true
+            }
+        })
+
+        if (!user) {
+            res.status(401).json({ message: "User not found" })
+            return
+        }
+
+        // Generate new token with updated user info
+        const newToken = jwt.sign(
+            { userId: user.id, role: user.role },
+            JWT_PASSWORD,
+            { expiresIn: '7d' }
+        )
+
+        res.json({
+            token: newToken,
+            user
+        })
+    } catch (e) {
+        res.status(401).json({ message: "Invalid or expired token" })
+    }
 })
 
 router.get("/search/spaces", async (req, res) => {
-    res.json({ message: "Search Spaces" })
+    const { q, page = 1, limit = 10 } = req.query
+    const { page: validPage, limit: validLimit } = PaginationSchema.parse({ page, limit })
+    const skip = (validPage - 1) * validLimit
+    
+    if (!q || typeof q !== 'string') {
+        res.status(400).json({ message: "Search query 'q' is required" })
+        return
+    }
+
+    try {
+        const searchQuery = q.trim()
+        
+        // Search public spaces by name
+        const [spaces, totalCount] = await Promise.all([
+            client.space.findMany({
+                where: {
+                    AND: [
+                        { isPublic: true },
+                        {
+                            OR: [
+                                { name: { contains: searchQuery, mode: 'insensitive' } },
+                                { 
+                                    snippets: {
+                                        some: {
+                                            OR: [
+                                                { title: { contains: searchQuery, mode: 'insensitive' } },
+                                                { description: { contains: searchQuery, mode: 'insensitive' } },
+                                                { tags: { has: searchQuery } }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                include: {
+                    owner: {
+                        select: {
+                            id: true,
+                            username: true,
+                            name: true
+                        }
+                    },
+                    _count: {
+                        select: {
+                            snippets: true,
+                            collaborators: true,
+                            views: true
+                        }
+                    },
+                    snippets: {
+                        where: {
+                            OR: [
+                                { title: { contains: searchQuery, mode: 'insensitive' } },
+                                { description: { contains: searchQuery, mode: 'insensitive' } },
+                                { tags: { has: searchQuery } }
+                            ]
+                        },
+                        select: {
+                            id: true,
+                            title: true,
+                            description: true,
+                            tags: true,
+                            totalViews: true
+                        },
+                        take: 3 // Show max 3 matching snippets per space
+                    }
+                },
+                skip,
+                take: validLimit,
+                orderBy: [
+                    { totalViews: 'desc' },
+                    { updatedAt: 'desc' }
+                ]
+            }),
+            client.space.count({
+                where: {
+                    AND: [
+                        { isPublic: true },
+                        {
+                            OR: [
+                                { name: { contains: searchQuery, mode: 'insensitive' } },
+                                { 
+                                    snippets: {
+                                        some: {
+                                            OR: [
+                                                { title: { contains: searchQuery, mode: 'insensitive' } },
+                                                { description: { contains: searchQuery, mode: 'insensitive' } },
+                                                { tags: { has: searchQuery } }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            })
+        ])
+
+        // Also search for individual public snippets (from non-public spaces)
+        const publicSnippets = await client.snippet.findMany({
+            where: {
+                AND: [
+                    {
+                        OR: [
+                            { space: { isPublic: true } },
+                            { space: null } // Snippets not in any space
+                        ]
+                    },
+                    {
+                        OR: [
+                            { title: { contains: searchQuery, mode: 'insensitive' } },
+                            { description: { contains: searchQuery, mode: 'insensitive' } },
+                            { tags: { has: searchQuery } }
+                        ]
+                    }
+                ]
+            },
+            include: {
+                owner: {
+                    select: {
+                        id: true,
+                        username: true,
+                        name: true
+                    }
+                },
+                space: {
+                    select: {
+                        id: true,
+                        name: true,
+                        isPublic: true
+                    }
+                }
+            },
+            take: validLimit,
+            orderBy: [
+                { totalViews: 'desc' },
+                { updatedAt: 'desc' }
+            ]
+        })
+
+        res.json({
+            query: searchQuery,
+            spaces: {
+                results: spaces,
+                total: totalCount,
+                page: validPage,
+                limit: validLimit,
+                totalPages: Math.ceil(totalCount / validLimit)
+            },
+            snippets: {
+                results: publicSnippets,
+                total: publicSnippets.length
+            }
+        })
+    } catch (e) {
+        console.error("Search error:", e)
+        res.status(500).json({ message: "Search failed" })
+    }
 })
 
-// Health check
-router.get("/health", async (req, res) => {
-    res.json({ message: "API Health Check", status: "OK" })
+// Health check route
+router.get("/health", (req, res) => {
+    res.json({ 
+        status: "ok", 
+        timestamp: new Date().toISOString(),
+        service: "code-sharing-api"
+    })
 })
 
 // Sub-routers
