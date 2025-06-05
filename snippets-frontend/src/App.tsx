@@ -6,13 +6,9 @@ import TagColorMenu from "./components/TagColorMenu";
 import Sidebar from "./components/Sidebar";
 import { colors, type Box as BoxType, type TagColorMenuState } from "./components/types";
 
-
-
 export default function Space() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-
-
 
   // Zoom & pan - replaced framer-motion with native state
   const [scale, setScale] = useState(1);
@@ -34,7 +30,9 @@ export default function Space() {
       label: "Box 1",
       description: "This is the first box with some sample description text.",
       tags: ["important", "sample"],
-      files: []
+      files: [],
+      code: "",
+      codeLanguage: "javascript"
     },
     { 
       id: "2", 
@@ -44,19 +42,21 @@ export default function Space() {
       label: "Box 2",
       description: "Second box for demonstration purposes.",
       tags: ["demo", "test"],
-      files: []
+      files: [],
+      code: "// Sample JavaScript code\nfunction greet(name) {\n  return `Hello, ${name}!`;\n}\n\nconsole.log(greet('World'));",
+      codeLanguage: "javascript"
     },
   ]);
   const [nextBoxId, setNextBoxId] = useState<number>(3);
   const [boxOrder, setBoxOrder] = useState<string[]>([]);
-
-
 
   const [editingBox, setEditingBox] = useState<BoxType | null>(null);
   const [editText, setEditText] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editColor, setEditColor] = useState("");
   const [editTags, setEditTags] = useState<string[]>([]);
+  const [editCode, setEditCode] = useState("");
+  const [editCodeLanguage, setEditCodeLanguage] = useState("javascript");
   const [newTag, setNewTag] = useState("");
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -187,7 +187,9 @@ export default function Space() {
       label: `Box ${nextBoxId}`,
       description: "",
       tags: [],
-      files: []
+      files: [],
+      code: "",
+      codeLanguage: "javascript"
     };
     setBoxes(prev => [...prev, newBox]);
     setNextBoxId(prev => prev + 1);
@@ -200,6 +202,8 @@ export default function Space() {
     setEditDescription(box.description);
     setEditColor(box.color);
     setEditTags([...box.tags]);
+    setEditCode(box.code || "");
+    setEditCodeLanguage(box.codeLanguage || "javascript");
     setNewTag("");
   };
 
@@ -212,7 +216,9 @@ export default function Space() {
               label: editText, 
               description: editDescription,
               color: editColor,
-              tags: editTags
+              tags: editTags,
+              code: editCode,
+              codeLanguage: editCodeLanguage
             }
           : box
       ));
@@ -226,6 +232,8 @@ export default function Space() {
     setEditDescription("");
     setEditColor("");
     setEditTags([]);
+    setEditCode("");
+    setEditCodeLanguage("javascript");
     setNewTag("");
   };
 
@@ -289,7 +297,7 @@ export default function Space() {
     const centerX = -box.x * scale + window.innerWidth / 2 - 96;
     const centerY = -box.y * scale + window.innerHeight / 2 - 64;
 
-    // Using framer-motion animate for smooth navigation (keeping this as requested)
+    // Using framer-motion animate for smooth navigation 
     animate(panX, centerX, { 
       type: "spring", 
       stiffness: 100, 
@@ -329,7 +337,8 @@ export default function Space() {
       box.label.toLowerCase().includes(searchTerm) ||
       box.description.toLowerCase().includes(searchTerm) ||
       box.tags.some(tag => tag.toLowerCase().includes(searchTerm)) ||
-      box.files?.some(file => file.name.toLowerCase().includes(searchTerm))
+      box.files?.some(file => file.name.toLowerCase().includes(searchTerm)) ||
+      (box.code && box.code.toLowerCase().includes(searchTerm))
     );
   };
 
@@ -395,11 +404,15 @@ export default function Space() {
           editDescription={editDescription}
           editColor={editColor}
           editTags={editTags}
+          editCode={editCode}
+          editCodeLanguage={editCodeLanguage}
           newTag={newTag}
           onTextChange={setEditText}
           onDescriptionChange={setEditDescription}
           onColorChange={setEditColor}
           onTagsChange={setEditTags}
+          onCodeChange={setEditCode}
+          onCodeLanguageChange={setEditCodeLanguage}
           onNewTagChange={setNewTag}
           onAddTag={addTag}
           onRemoveTag={removeTag}

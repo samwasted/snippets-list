@@ -2,6 +2,8 @@ export type Box = {
   id: string;
   x: number;
   y: number;
+  code?: string;
+  codeLanguage?: string;
   color: string;
   label: string;
   description: string;
