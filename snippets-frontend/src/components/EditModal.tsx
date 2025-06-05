@@ -37,6 +37,12 @@ const detectLanguageFromExtension = (filename: string): string => {
   return language?.value || 'text';
 };
 
+// Function to get file extension for a language
+const getFileExtension = (language: string): string => {
+  const lang = PROGRAMMING_LANGUAGES.find(l => l.value === language);
+  return lang ? lang.extensions[0] : '.txt';
+};
+
 interface EditModalProps {
   editingBox: BoxType;
   editText: string;
@@ -73,13 +79,11 @@ const EditModal: React.FC<EditModalProps> = ({
   onTextChange,
   onDescriptionChange,
   onColorChange,
-  // onTagsChange,
   onCodeChange,
   onCodeLanguageChange,
   onNewTagChange,
   onAddTag,
   onRemoveTag,
-  // onTagKeyPress,
   onSave,
   onCancel,
   onDelete
@@ -129,6 +133,25 @@ const EditModal: React.FC<EditModalProps> = ({
     reader.readAsText(file);
   };
 
+  const handleDownloadCode = () => {
+    if (!editCode.trim()) return;
+
+    const extension = getFileExtension(editCodeLanguage);
+    const filename = editText ? `${editText}${extension}` : `code${extension}`;
+    
+    const blob = new Blob([editCode], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const clearCode = () => {
     onCodeChange('');
     onCodeLanguageChange('text');
@@ -136,50 +159,49 @@ const EditModal: React.FC<EditModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-[600px] max-h-[90vh] overflow-y-auto shadow-xl">
-        <h3 className="text-xl font-bold mb-6 text-gray-800 flex items-center gap-2">
-          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+      <div className="bg-white rounded-lg p-6 w-[600px] max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-4 text-gray-800">
           Edit Box
         </h3>
         
         <div className="mb-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Box Title
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Title
           </label>
           <input
             type="text"
             value={editText}
             onChange={(e) => onTextChange(e.target.value)}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Enter box title..."
             autoFocus
           />
         </div>
         
         <div className="mb-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Description
           </label>
           <textarea
             value={editDescription}
             onChange={(e) => onDescriptionChange(e.target.value)}
             rows={3}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-vertical transition-all duration-200"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
             placeholder="Enter description..."
           />
         </div>
 
         {/* Code Section */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <label className="block text-sm font-semibold text-gray-700">
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
               Code
             </label>
             <div className="flex items-center gap-2">
               <select
                 value={editCodeLanguage}
                 onChange={(e) => onCodeLanguageChange(e.target.value)}
-                className="px-3 py-1 text-sm border-2 border-gray-200 rounded-md focus:outline-none focus:border-blue-500 bg-white"
+                className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {PROGRAMMING_LANGUAGES.map(lang => (
                   <option key={lang.value} value={lang.value}>
@@ -188,12 +210,20 @@ const EditModal: React.FC<EditModalProps> = ({
                 ))}
               </select>
               {editCode && (
-                <button
-                  onClick={clearCode}
-                  className="text-xs text-red-600 hover:text-red-800 font-medium"
-                >
-                  Clear
-                </button>
+                <>
+                  <button
+                    onClick={handleDownloadCode}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Download
+                  </button>
+                  <button
+                    onClick={clearCode}
+                    className="text-sm text-red-600 hover:text-red-800"
+                  >
+                    Clear
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -203,10 +233,10 @@ const EditModal: React.FC<EditModalProps> = ({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`relative border-2 border-dashed rounded-lg transition-all duration-200 ${
+            className={`border-2 border-dashed rounded-md transition-colors ${
               isDragOver 
                 ? 'border-blue-500 bg-blue-50' 
-                : 'border-gray-300 hover:border-gray-400'
+                : 'border-gray-300'
             }`}
           >
             <input
@@ -218,51 +248,37 @@ const EditModal: React.FC<EditModalProps> = ({
             />
             
             {!editCode ? (
-              <div className="p-8 text-center">
-                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                </div>
-                <p className="text-gray-600 mb-2 font-medium">Drop your code file here</p>
-                <p className="text-sm text-gray-500 mb-4">or</p>
+              <div className="p-6 text-center">
+                <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p className="text-gray-600 mb-2">Drop your code file here</p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 font-medium"
+                  className="text-blue-600 hover:text-blue-800 text-sm"
                 >
-                  Browse Files
+                  or browse files
                 </button>
-                <p className="text-xs text-gray-400 mt-3">
-                  Supports .js, .ts, .py, .java, .cpp, .html, .css and more
-                </p>
               </div>
             ) : (
-              <div className="p-0">
-                <div className="bg-gray-900 text-gray-100 rounded-t-lg px-4 py-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    </div>
-                    <span className="text-sm font-mono">
-                      {PROGRAMMING_LANGUAGES.find(l => l.value === editCodeLanguage)?.label || 'Code'}
-                    </span>
-                  </div>
+              <div>
+                <div className="bg-gray-100 px-3 py-2 rounded-t-md flex items-center justify-between border-b">
+                  <span className="text-sm text-gray-600">
+                    {PROGRAMMING_LANGUAGES.find(l => l.value === editCodeLanguage)?.label || 'Code'}
+                  </span>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-xs text-gray-400 hover:text-white transition-colors"
+                    className="text-xs text-gray-500 hover:text-gray-700"
                   >
-                    Replace file
+                    Replace
                   </button>
                 </div>
                 <textarea
                   value={editCode}
                   onChange={(e) => onCodeChange(e.target.value)}
                   rows={8}
-                  className="w-full px-4 py-3 font-mono text-sm bg-gray-50 border-0 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
-                  placeholder="Paste your code here or drop a file above..."
-                  style={{ fontFamily: 'Fira Code, Consolas, Monaco, monospace' }}
+                  className="w-full px-3 py-2 font-mono text-sm bg-gray-50 border-0 rounded-b-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+                  placeholder="Paste your code here..."
                 />
               </div>
             )}
@@ -270,22 +286,22 @@ const EditModal: React.FC<EditModalProps> = ({
         </div>
         
         <div className="mb-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Tags
           </label>
           
-          <div className="flex gap-2 mb-3">
+          <div className="flex gap-2 mb-2">
             <input
               type="text"
               value={newTag}
               onChange={(e) => onNewTagChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onAddTag()}
-              className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm transition-all duration-200"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               placeholder="Add a tag..."
             />
             <button
               onClick={onAddTag}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-700 text-sm font-medium transition-all duration-200"
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm"
             >
               Add
             </button>
@@ -295,12 +311,12 @@ const EditModal: React.FC<EditModalProps> = ({
             {editTags.map(tag => (
               <span
                 key={tag}
-                className="inline-flex items-center bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 text-xs px-3 py-1 rounded-full font-medium"
+                className="inline-flex items-center bg-gray-100 text-gray-800 text-sm px-2 py-1 rounded-md"
               >
                 {tag}
                 <button
                   onClick={() => onRemoveTag(tag)}
-                  className="ml-2 text-blue-600 hover:text-red-600 transition-colors"
+                  className="ml-1 text-gray-500 hover:text-red-600"
                 >
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -308,45 +324,39 @@ const EditModal: React.FC<EditModalProps> = ({
                 </button>
               </span>
             ))}
-            {editTags.length === 0 && (
-              <span className="text-gray-500 text-sm italic">No tags added</span>
-            )}
           </div>
         </div>
         
         <div className="mb-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-3">
-            Box Color
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Color
           </label>
-          <div className="grid grid-cols-6 gap-3">
+          <div className="grid grid-cols-6 gap-2">
             {colors.map(color => (
               <button
                 key={color}
                 onClick={() => onColorChange(color)}
-                className={`w-12 h-12 rounded-xl ${color} border-3 transition-all duration-200 transform hover:scale-110 ${
+                className={`w-8 h-8 rounded-md ${color} border-2 ${
                   editColor === color 
-                    ? 'border-gray-800 ring-3 ring-blue-400 scale-110' 
-                    : 'border-gray-300 hover:border-gray-400'
+                    ? 'border-gray-800' 
+                    : 'border-gray-300'
                 }`}
                 title={colorNames[color as keyof typeof colorNames]}
               />
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-2 font-medium">
-            Selected: {colorNames[editColor as keyof typeof colorNames]}
-          </p>
         </div>
         
         <div className="flex gap-3">
           <button
             onClick={onSave}
-            className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
           >
             Save Changes
           </button>
           <button
             onClick={onCancel}
-            className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-lg hover:bg-gray-300 transition-all duration-200 font-semibold"
+            className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300"
           >
             Cancel
           </button>
@@ -355,7 +365,7 @@ const EditModal: React.FC<EditModalProps> = ({
               onDelete(editingBox.id);
               onCancel();
             }}
-            className="bg-gradient-to-r from-red-500 to-red-600 text-white py-3 px-6 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700"
           >
             Delete
           </button>
