@@ -5,7 +5,7 @@ import client from "@repo/db"
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { JWT_PASSWORD } from "./config";
 
-function getRandomString(length: number): string {
+function getRandomString(length: number): string {  //just to help, idk if I needed this
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let result = "";
     for (let i = 0; i < length; i++) {
@@ -22,7 +22,7 @@ export class User {
     private userRole?: CollaboratorRole;
 
     constructor(ws: WebSocket) {
-        this.id = getRandomString(10);
+        this.id = getRandomString(10); //we dont need an actual id, this is just for the ws connection
         this.ws = ws;
         this.initHandlers();
     }
