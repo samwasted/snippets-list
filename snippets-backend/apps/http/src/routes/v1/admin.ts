@@ -72,7 +72,7 @@ adminRouter.get("/snippet/:snippetId", adminMiddleware, async (req, res) => {
 });
 
 // Map/Analytics
-adminRouter.get("/map", adminMiddleware, async (req, res) => {
+adminRouter.get("/map", adminMiddleware, async (req, res) => { //validated
     const { page = 1, limit = 50 } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
@@ -110,7 +110,7 @@ adminRouter.get("/map", adminMiddleware, async (req, res) => {
 });
 
 // User management
-adminRouter.get("/users", adminMiddleware, async (req, res) => {
+adminRouter.get("/users", adminMiddleware, async (req, res) => { //validated
     const { page = 1, limit = 20 } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
@@ -143,7 +143,7 @@ adminRouter.get("/users", adminMiddleware, async (req, res) => {
     });
 });
 
-adminRouter.put("/user/:userId", adminMiddleware, async (req, res) => {
+adminRouter.put("/user/:userId", adminMiddleware, async (req, res) => { //validated
     const { userId } = req.params;
     const validatedData = UpdateUserProfileSchema.parse(req.body);
     
@@ -168,7 +168,7 @@ adminRouter.put("/user/:userId", adminMiddleware, async (req, res) => {
     res.json({ message: "User updated successfully", user });
 });
 
-adminRouter.delete("/user/:userId", adminMiddleware, async (req, res) => {
+adminRouter.delete("/user/:userId", adminMiddleware, async (req, res) => { //validated
     const { userId } = req.params;
     
     // Delete user's data in order (views -> snippets -> space collaborations -> spaces -> user)
@@ -204,7 +204,7 @@ adminRouter.delete("/user/:userId", adminMiddleware, async (req, res) => {
 });
 
 // Space management
-adminRouter.get("/spaces", adminMiddleware, async (req, res) => {
+adminRouter.get("/spaces", adminMiddleware, async (req, res) => { //validated
     const { page = 1, limit = 20 } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
@@ -289,7 +289,7 @@ adminRouter.delete("/space/:spaceId", adminMiddleware, async (req, res) => {
 });
 
 // Analytics
-adminRouter.get("/analytics/views", adminMiddleware, async (req, res) => {
+adminRouter.get("/analytics/views", adminMiddleware, async (req, res) => { //validated
     const { startDate, endDate, groupBy } = AnalyticsQuerySchema.parse(req.query);
     
     const whereClause = {
@@ -347,7 +347,7 @@ adminRouter.get("/analytics/views", adminMiddleware, async (req, res) => {
     });
 });
 
-adminRouter.get("/analytics/popular", adminMiddleware, async (req, res) => {
+adminRouter.get("/analytics/popular", adminMiddleware, async (req, res) => { //validated
     const { page = 1, limit = 10 } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     

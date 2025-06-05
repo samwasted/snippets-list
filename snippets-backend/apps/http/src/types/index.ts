@@ -126,11 +126,20 @@ export const AdminUserUpdateSchema = z.object({
   type: z.enum(["user", "admin"]).optional()
 })
 
+// export const AdminSpaceUpdateSchema = z.object({
+//   name: z.string().min(1, "Space name is required").optional(),
+//   isPublic: z.boolean().optional(),
+//   ownerId: z.string().optional()
+// })
 export const AdminSpaceUpdateSchema = z.object({
-  name: z.string().min(1, "Space name is required").optional(),
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
   isPublic: z.boolean().optional(),
-  ownerId: z.string().optional()
-})
+  // Admin-specific fields that regular users might not be able to update
+  ownerId: z.string().uuid().optional(), // Allow admin to change ownership
+  isActive: z.boolean().optional(), // Allow admin to activate/deactivate spaces
+  isFeatured: z.boolean().optional(), // Allow admin to feature spaces
+}).strict();
 
 // Pagination Schema
 export const PaginationSchema = z.object({
