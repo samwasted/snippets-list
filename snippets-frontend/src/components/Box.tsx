@@ -13,6 +13,7 @@ interface BoxProps {
 
 const Box: React.FC<BoxProps> = ({ 
   box, 
+  scale,
   onUpdatePosition, 
   onStartEditing,
   onTagRightClick,
@@ -119,13 +120,24 @@ const Box: React.FC<BoxProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Prevent canvas pan when dragging box
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleDragStart = (event: MouseEvent | TouchEvent | PointerEvent) => {
+    event.stopPropagation();
+  };
+
   return (
     <motion.div
       drag
       dragMomentum={false}
       whileDrag={{ scale: 1.05 }}
       whileHover={{ scale: 1.02 }}
-      onDrag={(_, info) => onUpdatePosition(box.id, info.delta.x, info.delta.y)}
+      onDrag={(_, info) => onUpdatePosition(box.id, info.delta.x/scale, info.delta.y/scale)}
+      onDragStart={handleDragStart}
+      onMouseDown={handleMouseDown}
       onDoubleClick={() => onStartEditing(box)}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

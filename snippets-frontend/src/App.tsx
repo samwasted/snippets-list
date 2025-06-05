@@ -1,93 +1,56 @@
 import React, { useState, useRef } from "react";
-import { motion, useMotionValue, animate } from "framer-motion";
+import { animate } from "framer-motion";
 import Box from "./components/Box";
 import EditModal from "./components/EditModal";
 import TagColorMenu from "./components/TagColorMenu";
 import Sidebar from "./components/Sidebar";
 import { colors, type Box as BoxType, type TagColorMenuState } from "./components/types";
-// import Line from "./line";
-//CANT KEEP UNUSED IMPORTS IN TS
 
-// Local Storage Helpers - Updated to handle files
-const LOCAL_STORAGE_KEY = "box-data";
 
-const saveToLocalStorage = (data: { boxes: BoxType[]; nextBoxId: number; boxOrder: string[] }) => {
-  // Clone data and convert File objects to serializable format
-  const serializableData = {
-    ...data,
-    boxes: data.boxes.map(box => ({
-      ...box,
-      files: box.files?.map(file => ({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified,
-        // Store file content as base64 for small files (< 1MB)
-        content: file.size < 1024 * 1024 ? null : null // We'll handle file storage differently
-      })) || []
-    }))
-  };
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(serializableData));
-};
-
-const loadFromLocalStorage = (): { boxes: BoxType[]; nextBoxId: number; boxOrder: string[] } | null => {
-  const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    const data = JSON.parse(raw) as { boxes: BoxType[]; nextBoxId: number; boxOrder: string[] };
-    // Note: Files won't be restored from localStorage as File objects can't be serialized
-    // You might want to implement a proper file storage solution for persistence
-    return data;
-  } catch (e) {
-    console.error("Failed to parse localStorage:", e);
-    return null;
-  }
-};
 
 export default function Space() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Load persisted data
-  const initialData = loadFromLocalStorage();
 
-  // Zoom & pan
+
+  // Zoom & pan - replaced framer-motion with native state
   const [scale, setScale] = useState(1);
-  const panX = useMotionValue(0);
-  const panY = useMotionValue(0);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  
+  // Pan drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   // Boxes and links
-  const [boxes, setBoxes] = useState<BoxType[]>(
-    initialData?.boxes || [
-      { 
-        id: "1", 
-        x: 100, 
-        y: 100, 
-        color: "bg-red-400", 
-        label: "Box 1",
-        description: "This is the first box with some sample description text.",
-        tags: ["important", "sample"],
-        files: []
-      },
-      { 
-        id: "2", 
-        x: 400, 
-        y: 200, 
-        color: "bg-green-400", 
-        label: "Box 2",
-        description: "Second box for demonstration purposes.",
-        tags: ["demo", "test"],
-        files: []
-      },
-    ]
-  );
-  const [nextBoxId, setNextBoxId] = useState<number>(initialData?.nextBoxId || 3);
-  const [boxOrder, setBoxOrder] = useState<string[]>(initialData?.boxOrder || []);
+  const [boxes, setBoxes] = useState<BoxType[]>([
+    { 
+      id: "1", 
+      x: 100, 
+      y: 100, 
+      color: "bg-red-400", 
+      label: "Box 1",
+      description: "This is the first box with some sample description text.",
+      tags: ["important", "sample"],
+      files: []
+    },
+    { 
+      id: "2", 
+      x: 400, 
+      y: 200, 
+      color: "bg-green-400", 
+      label: "Box 2",
+      description: "Second box for demonstration purposes.",
+      tags: ["demo", "test"],
+      files: []
+    },
+  ]);
+  const [nextBoxId, setNextBoxId] = useState<number>(3);
+  const [boxOrder, setBoxOrder] = useState<string[]>([]);
 
-  // Persist state changes (including files)
-  React.useEffect(() => {
-    saveToLocalStorage({ boxes, nextBoxId, boxOrder });
-  }, [boxes, nextBoxId, boxOrder]);
+
 
   const [editingBox, setEditingBox] = useState<BoxType | null>(null);
   const [editText, setEditText] = useState("");
@@ -106,6 +69,59 @@ export default function Space() {
     y: 0 
   });
 
+  // Native pan handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
+    
+    if (!isOnCanvas) return;
+    
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setPanStart({ x: panX, y: panY });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    
+    const deltaX = e.clientX - dragStart.x;
+    const deltaY = e.clientY - dragStart.y;
+    
+    setPanX(panStart.x + deltaX);
+    setPanY(panStart.y + deltaY);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Add mouse event listeners for global mouse events
+  React.useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
+      
+      setPanX(panStart.x + deltaX);
+      setPanY(panStart.y + deltaY);
+    };
+
+    const handleGlobalMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleGlobalMouseMove);
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isDragging, dragStart, panStart]);
+
   // Get all unique tags from all boxes
   const getAllTags = () => {
     const tagSet = new Set<string>();
@@ -122,41 +138,6 @@ export default function Space() {
       )
     );
   };
-
-
-  // const exportAllFiles = () => {
-  //   boxes.forEach(box => {
-  //     if (box.files && box.files.length > 0) {
-  //       box.files.forEach(file => {
-  //         const url = URL.createObjectURL(file);
-  //         const a = document.createElement('a');
-  //         a.href = url;
-  //         a.download = `${box.label}_${file.name}`;
-  //         a.click();
-  //         URL.revokeObjectURL(url);
-  //       });
-  //     }
-  //   });
-  // };
-  // see isko later
-
-  // const getTotalFileCount = () => {
-  //   return boxes.reduce((total, box) => total + (box.files?.length || 0), 0);
-  // };
-
-  // const getTotalFileSize = () => {
-  //   return boxes.reduce((total, box) => {
-  //     return total + (box.files?.reduce((size, file) => size + file.size, 0) || 0);
-  //   }, 0);
-  // };
-
-  // const formatFileSize = (bytes: number) => {
-  //   if (bytes === 0) return '0 Bytes';
-  //   const k = 1024;
-  //   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  //   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  //   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  // };
 
   // Initialize box order when boxes change
   React.useEffect(() => {
@@ -194,12 +175,6 @@ export default function Space() {
   const zoom = (delta: number) => {
     setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
   };
-
-  // const reset = () => {
-  //   setScale(1);
-  //   panX.set(0);
-  //   panY.set(0);
-  // }; //causing issues
 
   // Add new box
   const addBox = () => {
@@ -309,13 +284,24 @@ export default function Space() {
     ));
   };
 
-  // Navigate to box
+  // Navigate to box - still using framer-motion animate for smooth navigation
   const navigateToBox = (box: BoxType) => {
     const centerX = -box.x * scale + window.innerWidth / 2 - 96;
     const centerY = -box.y * scale + window.innerHeight / 2 - 64;
 
-    animate(panX, centerX, { type: "spring", stiffness: 100, damping: 20 });
-    animate(panY, centerY, { type: "spring", stiffness: 100, damping: 20 });
+    // Using framer-motion animate for smooth navigation (keeping this as requested)
+    animate(panX, centerX, { 
+      type: "spring", 
+      stiffness: 100, 
+      damping: 20,
+      onUpdate: (value) => setPanX(value)
+    });
+    animate(panY, centerY, { 
+      type: "spring", 
+      stiffness: 100, 
+      damping: 20,
+      onUpdate: (value) => setPanY(value)
+    });
   };
 
   // Filter functions
@@ -387,30 +373,7 @@ export default function Space() {
       <div className="fixed top-4 left-4 z-50 flex gap-2">
         <button onClick={() => zoom(0.2)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">+</button>
         <button onClick={() => zoom(-0.2)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">-</button>
-        {/* <button onClick={reset} className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">Recenter</button> */}
         <button onClick={addBox} className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">Add Box</button>
-        
-        {/* File statistics (improve kardiyo isko)*/}
-        {/* {getTotalFileCount() > 0 && (
-          <div className="bg-purple-500 text-white px-3 py-1 rounded flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
-              </svg>
-              <span>{getTotalFileCount()} files ({formatFileSize(getTotalFileSize())})</span>
-            </div>
-            <button 
-              onClick={exportAllFiles}
-              className="bg-purple-600 hover:bg-purple-700 px-2 py-0.5 rounded text-xs flex items-center gap-1"
-              title="Export all files"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-              </svg>
-              All
-            </button>
-          </div>
-        )} */}
       </div>
 
       {/* Tag Color Menu */}
@@ -464,12 +427,17 @@ export default function Space() {
         onStartEditing={startEditing}
       />
 
-      {/* Canvas - Pan container */}
-      <motion.div
+      {/* Canvas - Native pan container */}
+      <div
         ref={canvasRef}
-        style={{ scale, x: panX, y: panY }}
-        drag
-        className="w-full h-full"
+        className="w-full h-full cursor-grab"
+        style={{ 
+          transform: `scale(${scale}) translate(${panX}px, ${panY}px)`,
+          cursor: isDragging ? 'grabbing' : 'grab'
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
       >
         {/* Boxes */}
         {visibleBoxes.map(box => (
@@ -483,7 +451,7 @@ export default function Space() {
             onFilesChanged={handleFilesChanged}
           />
         ))}
-      </motion.div>
+      </div>
     </div>
   );
 }
