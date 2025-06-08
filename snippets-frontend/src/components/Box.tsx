@@ -1,29 +1,32 @@
 import React, { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import type { Box as BoxType } from "./types";
+import type { Snippet } from "./types";
 
 interface BoxProps {
-  box: BoxType;
+  snippet: Snippet;
   scale: number;
   onUpdatePosition: (id: string, deltaX: number, deltaY: number) => void;
-  onStartEditing: (box: BoxType) => void;
+  onStartEditing: (snippet: Snippet) => void;
   onTagRightClick: (e: React.MouseEvent, tag: string) => void;
   onFilesChanged: (id: string, files: File[]) => void;
+  canEdit: boolean;
 }
 
 const Box: React.FC<BoxProps> = ({ 
-  box, 
+  snippet, 
   scale,
   onUpdatePosition, 
   onStartEditing,
   onTagRightClick,
-  onFilesChanged
+  onFilesChanged,
+  canEdit
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (!canEdit) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(true);
@@ -36,24 +39,22 @@ const Box: React.FC<BoxProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent) => {
+    if (!canEdit) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
 
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (droppedFiles.length > 0) {
-      const existingFiles = box.files || [];
-      const newFiles = [...existingFiles, ...droppedFiles];
-      onFilesChanged(box.id, newFiles);
+      onFilesChanged(snippet.id, droppedFiles);
     }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canEdit) return;
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length > 0) {
-      const existingFiles = box.files || [];
-      const newFiles = [...existingFiles, ...selectedFiles];
-      onFilesChanged(box.id, newFiles);
+      onFilesChanged(snippet.id, selectedFiles);
     }
     // Clear the input so the same file can be selected again
     if (fileInputRef.current) {
@@ -62,14 +63,25 @@ const Box: React.FC<BoxProps> = ({
   };
 
   const handleRemoveFile = (fileIndex: number) => {
-    const existingFiles = box.files || [];
-    const newFiles = existingFiles.filter((_, index) => index !== fileIndex);
-    onFilesChanged(box.id, newFiles);
+    if (!canEdit) return;
+    // Note: This will need to be updated to work with file paths from database
+    // For now, we'll assume files array contains File objects for local state
+    const currentFiles = snippet.files as any[]; // Cast needed since DB stores paths as strings
+    const newFiles = currentFiles.filter((_, index) => index !== fileIndex);
+    onFilesChanged(snippet.id, newFiles);
   };
 
-  const handleDownloadFile = async (file: File) => {
+  const handleDownloadFile = async (file: any) => {
     try {
-      // Check if it's a proper File object
+      // Handle both File objects (local) and file paths (from database)
+      if (typeof file === 'string') {
+        // If it's a file path from database, we'd need to fetch it from server
+        // For now, just alert that this needs server implementation
+        alert('File download from server not yet implemented');
+        return;
+      }
+
+      // Handle File objects (local files)
       if (!(file instanceof File)) {
         console.error('Invalid file object:', file);
         return;
@@ -100,11 +112,13 @@ const Box: React.FC<BoxProps> = ({
       
       // Fallback: try to open file in new tab
       try {
-        const url = URL.createObjectURL(file);
-        window.open(url, '_blank');
-        setTimeout(() => {
-          URL.revokeObjectURL(url);
-        }, 1000);
+        if (file instanceof File) {
+          const url = URL.createObjectURL(file);
+          window.open(url, '_blank');
+          setTimeout(() => {
+            URL.revokeObjectURL(url);
+          }, 1000);
+        }
       } catch (fallbackError) {
         console.error('Fallback download also failed:', fallbackError);
         alert('Unable to download file. Please try again.');
@@ -112,7 +126,9 @@ const Box: React.FC<BoxProps> = ({
     }
   };
 
-  const formatFileSize = (bytes: number) => {
+  const formatFileSize = (file: any) => {
+    // Handle both File objects and file paths
+    const bytes = file instanceof File ? file.size : 0;
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -120,7 +136,12 @@ const Box: React.FC<BoxProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Prevent canvas pan when dragging box
+  const getFileName = (file: any) => {
+    // Handle both File objects and file paths
+    return file instanceof File ? file.name : file;
+  };
+
+  // Prevent canvas pan when dragging snippet
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
@@ -131,54 +152,61 @@ const Box: React.FC<BoxProps> = ({
 
   return (
     <motion.div
-      drag
+      drag={canEdit}
       dragMomentum={false}
       whileDrag={{ scale: 1.05 }}
       whileHover={{ scale: 1.02 }}
-      onDrag={(_, info) => onUpdatePosition(box.id, info.delta.x/scale, info.delta.y/scale)}
+      onDrag={(_, info) => canEdit && onUpdatePosition(snippet.id, info.delta.x/scale, info.delta.y/scale)}
       onDragStart={handleDragStart}
       onMouseDown={handleMouseDown}
-      onDoubleClick={() => onStartEditing(box)}
+      onDoubleClick={() => canEdit && onStartEditing(snippet)}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`absolute w-48 h-40 rounded-lg shadow-lg flex flex-col cursor-pointer select-none transition-all ${
-        box.color
+      className={`absolute w-48 h-40 rounded-lg shadow-lg flex flex-col select-none transition-all ${
+        snippet.color || 'bg-blue-400'
       } ${
         isDragOver ? 'ring-2 ring-white ring-opacity-50 scale-105' : ''
-      } hover:shadow-xl transition-shadow`}
-      style={{ left: box.x, top: box.y }}
+      } hover:shadow-xl transition-shadow ${
+        canEdit ? 'cursor-pointer' : 'cursor-default'
+      }`}
+      style={{
+      left: `${snippet.x ?? 0}px`,
+      top:  `${snippet.y ?? 0}px`
+      }}
       initial={{ scale: 0 }}
       animate={{ scale: 1 }}
       exit={{ scale: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        onChange={handleFileInput}
-        className="hidden"
-      />
+      {canEdit && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={handleFileInput}
+          className="hidden"
+        />
+      )}
 
       <div className="p-3 flex-1 flex flex-col relative">
-        <div className="font-semibold text-white text-center mb-2">{box.label}</div>
+        <div className="font-semibold text-white text-center mb-2">{snippet.title}</div>
         
-        {box.description && !showFiles && (
+        {snippet.description && !showFiles && (
           <div className="text-xs text-white/90 flex-1 overflow-hidden">
-            <div className="line-clamp-3">{box.description}</div>
+            <div className="line-clamp-3">{snippet.description}</div>
           </div>
         )}
 
         {/* Files section */}
-        {showFiles && box.files && box.files.length > 0 && (
+        {showFiles && snippet.files && snippet.files.length > 0 && (
           <div className="text-xs text-white/90 flex-1 overflow-y-auto">
             <div className="space-y-1">
-              {box.files.map((file, index) => (
+              {snippet.files.map((file, index) => (
                 <div key={index} className="flex items-center justify-between bg-white/10 rounded px-2 py-1">
                   <div className="flex-1 truncate">
-                    <div className="truncate font-medium">{file.name}</div>
-                    <div className="text-white/70">{formatFileSize(file.size)}</div>
+                    <div className="truncate font-medium">{getFileName(file)}</div>
+                    <div className="text-white/70">{formatFileSize(file)}</div>
                   </div>
                   <div className="flex gap-1 ml-2">
                     <button
@@ -191,16 +219,18 @@ const Box: React.FC<BoxProps> = ({
                     >
                       ↓
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveFile(index);
-                      }}
-                      className="text-white/70 hover:text-white text-xs px-1 py-0.5 rounded hover:bg-white/10"
-                      title="Remove"
-                    >
-                      ×
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveFile(index);
+                        }}
+                        className="text-white/70 hover:text-white text-xs px-1 py-0.5 rounded hover:bg-white/10"
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -208,20 +238,22 @@ const Box: React.FC<BoxProps> = ({
           </div>
         )}
         
-        {box.tags.length > 0 && !showFiles && (
+        {Array.isArray(snippet.tags) && snippet.tags.length > 0 && !showFiles && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {box.tags.slice(0, 3).map(tag => (
+            {snippet.tags.slice(0, 3).map(tag => (
               <span
                 key={tag}
-                onContextMenu={(e) => onTagRightClick(e, tag)}
-                className="inline-block bg-white/20 text-white text-xs px-1.5 py-0.5 rounded cursor-context-menu"
+                onContextMenu={(e) => canEdit && onTagRightClick(e, tag)}
+                className={`inline-block bg-white/20 text-white text-xs px-1.5 py-0.5 rounded ${
+                  canEdit ? 'cursor-context-menu' : 'cursor-default'
+                }`}
               >
                 {tag}
               </span>
             ))}
-            {box.tags.length > 3 && (
+            {snippet.tags.length > 3 && (
               <span className="inline-block bg-white/20 text-white text-xs px-1.5 py-0.5 rounded">
-                +{box.tags.length - 3}
+                +{snippet.tags.length - 3}
               </span>
             )}
           </div>
@@ -229,7 +261,7 @@ const Box: React.FC<BoxProps> = ({
 
         {/* File controls */}
         <div className="absolute top-1 right-1 flex gap-1">
-          {box.files && box.files.length > 0 && (
+          {snippet.files && snippet.files.length > 0 && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -238,23 +270,25 @@ const Box: React.FC<BoxProps> = ({
               className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/30 transition-colors"
               title={showFiles ? "Hide files" : "Show files"}
             >
-              📁 {box.files.length}
+              📁 {snippet.files.length}
             </button>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              fileInputRef.current?.click();
-            }}
-            className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/30 transition-colors"
-            title="Add files"
-          >
-            +
-          </button>
+          {canEdit && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/30 transition-colors"
+              title="Add files"
+            >
+              +
+            </button>
+          )}
         </div>
 
         {/* Drop zone overlay */}
-        {isDragOver && (
+        {isDragOver && canEdit && (
           <div className="absolute inset-0 bg-white/20 border-2 border-dashed border-white/50 rounded-lg flex items-center justify-center">
             <div className="text-white text-sm font-medium">Drop files here</div>
           </div>
