@@ -32,16 +32,49 @@ export default function Space({
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Fetch space data using axios
+  // Content state
+  const [snippets, setSnippets] = useState<Snippet[]>(initialSnippets);
+  const [snippetOrder, setSnippetOrder] = useState<string[]>(spaceData?.order || []);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch space data and snippets separately
   const fetchSpaceData = async (spaceId: string) => {
     try {
-      const data = await apiRequest(`/space/${spaceId}`);
-      setSnippets(data.snippets || []);
-      setSnippetOrder(data.order || []);
+      setIsLoading(true);
+      
+      // Fetch space details (includes basic info and order)
+      const spaceResponse = await apiRequest(`/space/${spaceId}`);
+      
+      // Update snippet order from space data
+      if (spaceResponse.space?.order) {
+        setSnippetOrder(spaceResponse.space.order);
+      }
+      
+      // If space has snippets in the response, use them (from GET /space/:id)
+      if (spaceResponse.space?.snippets) {
+        setSnippets(spaceResponse.space.snippets);
+      } else {
+        // Otherwise, fetch snippets separately from dedicated endpoint
+        const snippetsResponse = await apiRequest(`/space/${spaceId}/snippets`);
+        setSnippets(snippetsResponse.snippets || []);
+      }
+      
     } catch (error) {
       console.error("Failed to fetch space data:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Fetch snippets separately (useful for refreshing snippet data)
+  // const fetchSnippets = async (spaceId: string) => {
+  //   try {
+  //     const response = await apiRequest(`/space/${spaceId}/snippets`);
+  //     setSnippets(response.snippets || []);
+  //   } catch (error) {
+  //     console.error("Failed to fetch snippets:", error);
+  //   }
+  // };
 
   useEffect(() => {
     if (spaceId) {
@@ -56,10 +89,6 @@ export default function Space({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-
-  // Content state
-  const [snippets, setSnippets] = useState<Snippet[]>(initialSnippets);
-  const [snippetOrder, setSnippetOrder] = useState<string[]>(spaceData?.order || []);
 
   // Edit state
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
@@ -129,6 +158,10 @@ export default function Space({
               spaceId: spaceId || "failed",
               ownerId: spaceData?.ownerId || "failed to get owner id"
             };
+            
+            // Add new snippet to the end of the order
+            setSnippetOrder(prev => [...prev, newSnippet.id]);
+            
             return [...prev, newSnippet];
           }
           return prev;
@@ -137,6 +170,7 @@ export default function Space({
 
       case 'snippet-deleted':
         setSnippets(prev => prev.filter(snippet => snippet.id !== lastMessage.payload.snippetId));
+        setSnippetOrder(prev => prev.filter(id => id !== lastMessage.payload.snippetId));
         break;
 
       case 'snippet-updated':
@@ -190,12 +224,16 @@ export default function Space({
     };
   }, []);
 
+  // Update snippet order when snippets change
   useEffect(() => {
     const currentIds = snippets.map(snippet => snippet.id);
     const newIds = currentIds.filter(id => !snippetOrder.includes(id));
     const validIds = snippetOrder.filter(id => currentIds.includes(id));
-    setSnippetOrder([...validIds, ...newIds]);
-  }, [snippets.length]);
+    
+    if (newIds.length > 0 || validIds.length !== snippetOrder.length) {
+      setSnippetOrder([...validIds, ...newIds]);
+    }
+  }, [snippets]);
 
   useEffect(() => {
     const handleClickOutside = () => {
@@ -255,18 +293,17 @@ export default function Space({
   const zoom = (delta: number) => setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
 
   // Utility functions
- const getAllTags = () => {
-  const tagSet = new Set<string>();
+  const getAllTags = () => {
+    const tagSet = new Set<string>();
 
-  if (!Array.isArray(snippets)) return [];
+    if (!Array.isArray(snippets)) return [];
 
-  snippets.forEach(snippet => {
-    snippet.tags?.forEach(tag => tagSet.add(tag));
-  });
+    snippets.forEach(snippet => {
+      snippet.tags?.forEach(tag => tagSet.add(tag));
+    });
 
-  return Array.from(tagSet).sort();
-};
-
+    return Array.from(tagSet).sort();
+  };
 
   const resetEditState = () => {
     setEditingSnippet(null);
@@ -333,6 +370,7 @@ export default function Space({
       createdSnippet.y = Math.round(createdSnippet.y);
 
       setSnippets(prev => [...prev, createdSnippet]);
+      setSnippetOrder(prev => [...prev, createdSnippet.id]);
 
       if (sendSnippetCreate && isJoined) {
         sendSnippetCreate({
@@ -409,6 +447,7 @@ export default function Space({
     if (!canEdit) return;
 
     setSnippets(prev => prev.filter(s => s.id !== id));
+    setSnippetOrder(prev => prev.filter(snippetId => snippetId !== id));
 
     try {
       await apiRequest(`/space/${spaceId}/snippet/${id}`, { method: "DELETE" });
@@ -524,6 +563,8 @@ export default function Space({
       });
     } catch (error) {
       console.error("Failed to update order:", error);
+      // Revert on failure
+      setSnippetOrder(snippetOrder);
     }
   };
 
@@ -571,7 +612,7 @@ export default function Space({
     setTagColorMenu({ show: false, tag: "", x: 0, y: 0 });
   };
 
-  // Filter and sort snippets
+  // Filter and sort snippets based on current order
   const filteredSnippets = snippets.filter(snippet => {
     if (!matchesSearch(snippet, searchQuery)) return false;
     if (tagFilters.size > 0) {
@@ -581,16 +622,25 @@ export default function Space({
     return true;
   });
 
+  // Sort snippets according to the snippetOrder array
   const sortedSnippets = filteredSnippets.sort((a, b) => {
     const aIndex = snippetOrder.indexOf(a.id);
     const bIndex = snippetOrder.indexOf(b.id);
-    if (aIndex === -1 && bIndex === -1) return 0;
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    return aIndex - bIndex;
+    
+    // If both snippets are in the order array, sort by their position
+    if (aIndex !== -1 && bIndex !== -1) {
+      return aIndex - bIndex;
+    }
+    
+    // If only one is in the order array, prioritize it
+    if (aIndex !== -1) return -1;
+    if (bIndex !== -1) return 1;
+    
+    // If neither is in the order array, sort by creation date (newest first)
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
-  // Ensure snippets have totalViews property for sidebar compatibility and spaceId is always a string
+  // Ensure snippets have required properties for sidebar compatibility
   const snippetsWithViews = snippets.map(snippet => ({
     ...snippet,
     totalViews: snippet.totalViews ?? 0,
@@ -662,6 +712,14 @@ export default function Space({
                 )}
               </div>
             )}
+
+            {/* Loading indicator */}
+            {isLoading && (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full"></div>
+                Loading...
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -718,7 +776,6 @@ export default function Space({
                 {isJoined ? 'Connected' : isConnected ? 'Joining...' : 'Disconnected'}
               </span>
             </div>
-
             {/* User info */}
             {currentUser && (
               <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-md">
@@ -782,7 +839,7 @@ export default function Space({
           )}
 
           {/* Canvas */}
-          <div
+          <div 
             ref={canvasRef}
             className="w-full h-full cursor-grab"
             style={{
@@ -792,8 +849,8 @@ export default function Space({
             onMouseDown={handleMouseDown}
           >
             {sortedSnippets.map(snippet => (
-              <Box
-                key={snippet.id}
+              <Box 
+                key={snippet.id || "undefined"}
                 snippet={snippet}
                 scale={scale}
                 onUpdatePosition={updateSnippet}

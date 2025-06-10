@@ -6,183 +6,228 @@ import TagColorMenu from "./TagColorMenu";
 import Sidebar from "./Sidebar";
 import { colors, type TagColorMenuState, type Space, type SpaceCollaborator, type User, type Snippet } from "./types";
 import { useSpaceWebSocket } from "./useSpaceWebSocket";
+import { useParams } from 'react-router-dom';
+import { apiRequest } from './api';
 
 interface SpaceProps {
   spaceData?: Space;
   initialSnippets?: Snippet[];
   currentUser?: User;
   collaborators?: SpaceCollaborator[];
+  authToken?: string;
 }
 
-export default function Space({ 
-  spaceData, 
-  initialSnippets = [], 
+export default function Space({
+  spaceData,
+  initialSnippets = [],
   currentUser,
-  collaborators = []
+  collaborators = [],
+  authToken
 }: SpaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const { spaceId } = useParams<{ spaceId: string }>();
 
-  // Zoom & pan - replaced framer-motion with native state
+  // Sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Fetch space data using axios
+  const fetchSpaceData = async (spaceId: string) => {
+    try {
+      const data = await apiRequest(`/space/${spaceId}`);
+      setSnippets(data.snippets || []);
+      setSnippetOrder(data.order || []);
+    } catch (error) {
+      console.error("Failed to fetch space data:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (spaceId) {
+      fetchSpaceData(spaceId);
+    }
+  }, [spaceId]);
+
+  // Pan and zoom state
   const [scale, setScale] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
-  const [editCodeLanguage, setEditCodeLanguage] = useState("javascript");
-  
-  // Pan drag state
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
-  // WebSocket integration
-  const { sendSnippetUpdate, sendSnippetCreate, sendSnippetDelete, lastMessage } = useSpaceWebSocket();
-  const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
-  // Snippets state (renamed from boxes)
-  const [snippets, setSnippets] = useState<Snippet[]>(
-    initialSnippets.length > 0 ? initialSnippets : [
-      {
-        id: "1",
-        title: "Sample Snippet 1",
-        description: "This is the first snippet with some sample description text.",
-        code: "// Sample JavaScript code\nfunction greet(name) {\n  return `Hello, ${name}!`;\n}\n\nconsole.log(greet('World'));",
-        tags: ["important", "sample"],
-        color: "bg-red-400",
-        files: [],
-        x: 100,
-        y: 100,
-        totalViews: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        ownerId: currentUser?.id || "demo-user",
-        spaceId: spaceData?.id || null
-      }
-    ]
-  );
-
-  const [nextSnippetId, setNextSnippetId] = useState<number>(3);
+  // Content state
+  const [snippets, setSnippets] = useState<Snippet[]>(initialSnippets);
   const [snippetOrder, setSnippetOrder] = useState<string[]>(spaceData?.order || []);
 
-  // Edit state (updated for snippets)
+  // Edit state
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editColor, setEditColor] = useState("");
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editCode, setEditCode] = useState("");
+  const [editCodeLanguage, setEditCodeLanguage] = useState("javascript");
   const [newTag, setNewTag] = useState("");
+  
+  // Filter state
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Tag color menu state
-  const [tagColorMenu, setTagColorMenu] = useState<TagColorMenuState>({ 
-    show: false, 
-    tag: "", 
-    x: 0, 
-    y: 0 
+  const [tagColorMenu, setTagColorMenu] = useState<TagColorMenuState>({
+    show: false, tag: "", x: 0, y: 0
   });
 
-  // Check user permissions
+  // WebSocket and permissions
+  const { 
+    sendSnippetMove, 
+    sendSnippetCreate, 
+    sendSnippetDelete, 
+    sendSnippetUpdate,
+    lastMessage,
+    isConnected,
+    isJoined,
+    joinSpace
+  } = useSpaceWebSocket({
+    spaceId,
+    userId: currentUser?.id,
+    token: authToken,
+    enabled: true
+  });
+
   const userRole = collaborators.find(c => c.userId === currentUser?.id)?.role || 'VIEWER';
   const canEdit = userRole === 'EDITOR' || userRole === 'ADMIN' || spaceData?.ownerId === currentUser?.id;
-  const canAdmin = userRole === 'ADMIN' || spaceData?.ownerId === currentUser?.id;
 
-  // Handle WebSocket messages
+  // WebSocket message handling
   useEffect(() => {
-    if (lastMessage) {
-      switch(lastMessage.type) {
-        case 'snippetMoved':
-          // Only update if the move was not initiated by current user
-          if (lastMessage.payload.movedBy !== currentUser?.id) {
-            setSnippets(prev => prev.map(snippet => 
-              snippet.id === lastMessage.payload.id ? { 
-                ...snippet, 
-                x: lastMessage.payload.x,
-                y: lastMessage.payload.y,
-                updatedAt: new Date(lastMessage.payload.updatedAt)
-              } : snippet
-            ));
-          }
-          break;
-        
-        case 'snippetCreated':
-          setSnippets(prev => {
-            // Check if snippet already exists to avoid duplicates
-            const exists = prev.some(s => s.id === lastMessage.payload.id);
-            if (!exists) {
-              const newSnippet: Snippet = {
-                ...lastMessage.payload,
-                createdAt: new Date(lastMessage.payload.createdAt),
-                updatedAt: new Date(lastMessage.payload.updatedAt),
-                spaceId: spaceData?.id || null,
-                ownerId: spaceData?.ownerId || "idk"
-              };
-              return [...prev, newSnippet];
-            }
-            return prev;
-          });
-          break;
-        
-        case 'snippetDeleted':
-          setSnippets(prev => prev.filter(snippet => snippet.id !== lastMessage.payload.id));
-          break;
-        
-        case 'userJoined':
-          // Handle user joined notification
-          console.log(`User joined: ${lastMessage.payload.userId}`);
-          break;
-        
-        case 'userLeft':
-          // Handle user left notification
-          console.log(`User left: ${lastMessage.payload.userId}`);
-          break;
-      }
-    }
-  }, [lastMessage, currentUser?.id, spaceData?.id]);
+    if (!lastMessage) return;
 
-  // Cleanup debounce timers on unmount
+    switch (lastMessage.type) {
+      case 'snippet-moved':
+        if (lastMessage.payload.movedBy !== currentUser?.id) {
+          setSnippets(prev => prev.map(snippet =>
+            snippet.id === lastMessage.payload.snippetId ? {
+              ...snippet,
+              x: Math.round(lastMessage.payload.x),
+              y: Math.round(lastMessage.payload.y),
+              updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
+            } : snippet
+          ));
+        }
+        break;
+
+      case 'snippet-created':
+        setSnippets(prev => {
+          const exists = prev.some(s => s.id === lastMessage.payload.id);
+          if (!exists) {
+            const newSnippet: Snippet = {
+              ...lastMessage.payload,
+              x: Math.round(lastMessage.payload.x),
+              y: Math.round(lastMessage.payload.y),
+              createdAt: new Date(lastMessage.payload.createdAt || Date.now()),
+              updatedAt: new Date(lastMessage.payload.updatedAt || Date.now()),
+              spaceId: spaceId || "failed",
+              ownerId: spaceData?.ownerId || "failed to get owner id"
+            };
+            return [...prev, newSnippet];
+          }
+          return prev;
+        });
+        break;
+
+      case 'snippet-deleted':
+        setSnippets(prev => prev.filter(snippet => snippet.id !== lastMessage.payload.snippetId));
+        break;
+
+      case 'snippet-updated':
+        setSnippets(prev => prev.map(snippet =>
+          snippet.id === lastMessage.payload.id ? {
+            ...snippet,
+            ...lastMessage.payload,
+            x: Math.round(lastMessage.payload.x || snippet.x),
+            y: Math.round(lastMessage.payload.y || snippet.y),
+            updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
+          } : snippet
+        ));
+        break;
+
+      case 'user-joined':
+        console.log(`User joined: ${lastMessage.payload.userId}`);
+        break;
+
+      case 'user-left':
+        console.log(`User left: ${lastMessage.payload.userId}`);
+        break;
+
+      case 'space-joined':
+        console.log('Successfully joined space');
+        break;
+
+      case 'join-rejected':
+        console.error('Failed to join space:', lastMessage.payload);
+        break;
+
+      case 'error':
+        console.error('WebSocket error:', lastMessage.payload);
+        break;
+
+      default:
+        console.log('Unknown message type:', lastMessage.type);
+    }
+  }, [lastMessage, currentUser?.id, spaceId, spaceData?.ownerId]);
+
+  // Join space when token is available
+  useEffect(() => {
+    if (authToken && isConnected && !isJoined) {
+      joinSpace(authToken);
+    }
+  }, [authToken, isConnected, isJoined, joinSpace]);
+
+  // Cleanup and initialization effects
   useEffect(() => {
     return () => {
       Object.values(debounceRef.current).forEach(clearTimeout);
     };
   }, []);
 
-  // Native pan handlers
+  useEffect(() => {
+    const currentIds = snippets.map(snippet => snippet.id);
+    const newIds = currentIds.filter(id => !snippetOrder.includes(id));
+    const validIds = snippetOrder.filter(id => currentIds.includes(id));
+    setSnippetOrder([...validIds, ...newIds]);
+  }, [snippets.length]);
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setTagColorMenu({ show: false, tag: "", x: 0, y: 0 });
+    };
+    if (tagColorMenu.show) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [tagColorMenu.show]);
+
+  // Pan and zoom handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
-    
+
     if (!isOnCanvas) return;
-    
+
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
     setPanStart({ x: panX, y: panY });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    
-    const deltaX = e.clientX - dragStart.x;
-    const deltaY = e.clientY - dragStart.y;
-    
-    setPanX(panStart.x + deltaX);
-    setPanY(panStart.y + deltaY);
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  // Add mouse event listeners for global mouse events
-  React.useEffect(() => {
+  useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      
+
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
-      
-      setPanX(panStart.x + deltaX);
-      setPanY(panStart.y + deltaY);
+
+      setPanX(Math.round(panStart.x + deltaX));
+      setPanY(Math.round(panStart.y + deltaY));
     };
 
     const handleGlobalMouseUp = () => {
@@ -200,134 +245,110 @@ export default function Space({
     };
   }, [isDragging, dragStart, panStart]);
 
-  // Get all unique tags from all snippets
-  const getAllTags = () => {
-    const tagSet = new Set<string>();
-    snippets.forEach(snippet => {
-      snippet.tags.forEach(tag => tagSet.add(tag));
-    });
-    return Array.from(tagSet).sort();
-  };
-
-  const handleFilesChanged = (id: string, files: File[]) => {
-    if (!canEdit) return;
-    
-    // Convert File objects to file paths/names for database storage
-    const filePaths = files.map(file => file.name);
-    
-    setSnippets(prevSnippets => 
-      prevSnippets.map(snippet => 
-        snippet.id === id ? { 
-          ...snippet, 
-          files: filePaths,
-          updatedAt: new Date()
-        } : snippet
-      )
-    );
-    
-    // TODO: Upload files to server and get actual file paths
-    // This would be handled by your API layer
-  };
-
-  // Initialize snippet order when snippets change
-  React.useEffect(() => {
-    const currentIds = snippets.map(snippet => snippet.id);
-    const newIds = currentIds.filter(id => !snippetOrder.includes(id));
-    const validIds = snippetOrder.filter(id => currentIds.includes(id));
-    setSnippetOrder([...validIds, ...newIds]);
-  }, [snippets.length]);
-
-  // Close tag color menu when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = () => {
-      setTagColorMenu({ show: false, tag: "", x: 0, y: 0 });
-    };
-    if (tagColorMenu.show) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [tagColorMenu.show]);
-
-  // Zoom handlers - only zoom when on canvas
   const handleWheel = (e: React.WheelEvent) => {
-    const target = e.target as HTMLElement;
-    const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
-    
-    if (!isOnCanvas) {
-      return;
-    }
-    
+    if (!canvasRef.current?.contains(e.target as HTMLElement)) return;
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
   };
 
-  const zoom = (delta: number) => {
-    setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
+  const zoom = (delta: number) => setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
+
+  // Utility functions
+ const getAllTags = () => {
+  const tagSet = new Set<string>();
+
+  if (!Array.isArray(snippets)) return [];
+
+  snippets.forEach(snippet => {
+    snippet.tags?.forEach(tag => tagSet.add(tag));
+  });
+
+  return Array.from(tagSet).sort();
+};
+
+
+  const resetEditState = () => {
+    setEditingSnippet(null);
+    setEditTitle("");
+    setEditDescription("");
+    setEditColor("");
+    setEditTags([]);
+    setEditCode("");
+    setNewTag("");
   };
 
-  // Add new snippet with WebSocket integration
+  const matchesSearch = (snippet: Snippet, query: string) => {
+    if (!query.trim()) return true;
+    const searchTerm = query.toLowerCase().trim();
+    return (
+      snippet.title.toLowerCase().includes(searchTerm) ||
+      (snippet.description && snippet.description.toLowerCase().includes(searchTerm)) ||
+      snippet.tags.some(tag => tag.toLowerCase().includes(searchTerm)) ||
+      snippet.files.some(file => file.toLowerCase().includes(searchTerm)) ||
+      (snippet.code && snippet.code.toLowerCase().includes(searchTerm))
+    );
+  };
+
+  // File handling
+  const handleFilesChanged = (id: string, files: File[]) => {
+    if (!canEdit) return;
+
+    const filePaths = files.map(file => file.name);
+
+    setSnippets(prevSnippets =>
+      prevSnippets.map(snippet =>
+        snippet.id === id ? {
+          ...snippet,
+          files: filePaths,
+          updatedAt: new Date()
+        } : snippet
+      )
+    );
+  };
+
+  // Snippet operations
   const addSnippet = async () => {
     if (!canEdit) return;
-    
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    const newSnippet: Snippet = {
-      id: String(nextSnippetId), // In real app, this would be generated by the database
-      title: `Snippet ${nextSnippetId}`,
+
+    const newSnippetData = {
+      title: `New Snippet`,
       description: "",
       code: "",
       tags: [],
-      color: randomColor,
+      color: colors[Math.floor(Math.random() * colors.length)],
       files: [],
-      x: Math.random() * 400 + 200,
-      y: Math.random() * 400 + 200,
-      totalViews: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ownerId: currentUser?.id || "demo-user",
-      spaceId: spaceData?.id || null
+      x: Math.round(Math.random() * 400 + 200),
+      y: Math.round(Math.random() * 400 + 200),
+      spaceId: spaceId || null
     };
-    
-    // Optimistic update
-    setSnippets(prev => [...prev, newSnippet]);
-    setNextSnippetId(prev => prev + 1);
-    
-    // Send WebSocket update
-    if (sendSnippetCreate) {
-      sendSnippetCreate({
-        id: newSnippet.id,
-        title: newSnippet.title,
-        description: newSnippet.description || undefined,
-        code: newSnippet.code || undefined,
-        tags: newSnippet.tags,
-        color: newSnippet.color,
-        files: newSnippet.files,
-        x: newSnippet.x,
-        y: newSnippet.y,
-        totalViews: newSnippet.totalViews,
-        createdAt: newSnippet.createdAt.toISOString(),
-        updatedAt: newSnippet.updatedAt.toISOString()
-      });
-    }
-    
-    // Persist to database
+
     try {
-      await fetch(`/api/space/${spaceData?.id}/snippet`, {
+      const createdSnippet = await apiRequest(`/space/${spaceId}/snippet`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newSnippet)
+        body: JSON.stringify(newSnippetData)
       });
+
+      createdSnippet.x = Math.round(createdSnippet.x);
+      createdSnippet.y = Math.round(createdSnippet.y);
+
+      setSnippets(prev => [...prev, createdSnippet]);
+
+      if (sendSnippetCreate && isJoined) {
+        sendSnippetCreate({
+          ...createdSnippet,
+          createdAt: createdSnippet.createdAt?.toString() ?? new Date().toISOString(),
+          updatedAt: createdSnippet.updatedAt?.toString() ?? new Date().toISOString()
+        });
+      }
     } catch (error) {
       console.error("Failed to create snippet:", error);
-      // Optionally revert optimistic update on error
-      setSnippets(prev => prev.filter(s => s.id !== newSnippet.id));
     }
   };
 
-  // Edit snippet
   const startEditing = (snippet: Snippet) => {
     if (!canEdit) return;
-    
+
     setEditingSnippet(snippet);
     setEditTitle(snippet.title);
     setEditDescription(snippet.description || "");
@@ -348,6 +369,8 @@ export default function Space({
       color: editColor,
       tags: editTags,
       code: editCode || undefined,
+      x: Math.round(editingSnippet.x),
+      y: Math.round(editingSnippet.y),
       updatedAt: new Date()
     };
     
@@ -355,29 +378,153 @@ export default function Space({
       snippet.id === editingSnippet.id ? updatedSnippet : snippet
     ));
     
-    setEditingSnippet(null);
+    resetEditState();
     
-    // TODO: Send WebSocket update for snippet edit
-    // TODO: Save to database
     try {
-      await fetch(`/api/space/${spaceData?.id}/snippet/${editingSnippet.id}`, {
+      const response = await apiRequest(`/space/${spaceId}/snippet/${editingSnippet.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedSnippet)
       });
+
+      if (response.ok) {
+        const saved = await response.json();
+        saved.x = Math.round(saved.x);
+        saved.y = Math.round(saved.y);
+        setSnippets(prev => prev.map(s => s.id === editingSnippet.id ? saved : s));
+
+        if (sendSnippetUpdate && isJoined) {
+          sendSnippetUpdate({
+            ...saved,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
     } catch (error) {
       console.error("Failed to update snippet:", error);
     }
   };
 
-  const cancelEdit = () => {
-    setEditingSnippet(null);
-    setEditTitle("");
-    setEditDescription("");
-    setEditColor("");
-    setEditTags([]);
-    setEditCode("");
-    setNewTag("");
+  const deleteSnippet = async (id: string) => {
+    if (!canEdit) return;
+
+    setSnippets(prev => prev.filter(s => s.id !== id));
+
+    try {
+      await apiRequest(`/space/${spaceId}/snippet/${id}`, { method: "DELETE" });
+      
+      if (sendSnippetDelete && isJoined) {
+        sendSnippetDelete({ snippetId: id });
+      }
+    } catch (error) {
+      console.error("Failed to delete snippet:", error);
+    }
+  };
+
+  const updateSnippet = async (id: string, deltaX: number, deltaY: number) => {
+    if (!canEdit) return;
+
+    const currentSnippet = snippets.find(s => s.id === id);
+    if (!currentSnippet) return;
+
+    const newX = Math.round(currentSnippet.x + Math.round(deltaX / scale));
+    const newY = Math.round(currentSnippet.y + Math.round(deltaY / scale));
+
+    setSnippets(prev => prev.map(s =>
+      s.id === id ? {
+        ...s,
+        x: newX,
+        y: newY,
+        updatedAt: new Date()
+      } : s
+    ));
+
+    if (sendSnippetMove && isJoined) {
+      sendSnippetMove({
+        snippetId: id,
+        x: newX,
+        y: newY
+      });
+    }
+
+    if (debounceRef.current[id]) clearTimeout(debounceRef.current[id]);
+    debounceRef.current[id] = setTimeout(async () => {
+      const current = snippets.find(s => s.id === id);
+      if (current) {
+        try {
+          await apiRequest(`/space/${spaceId}/snippet/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              x: Math.round(current.x),
+              y: Math.round(current.y)
+            })
+          });
+        } catch (error) {
+          console.error("Position update failed:", error);
+        }
+      }
+    }, 1000);
+  };
+
+  // Navigation and filtering
+  const navigateToSnippet = (snippet: Snippet) => {
+    const centerX = Math.round(-snippet.x * scale + window.innerWidth / 2 - 96);
+    const centerY = Math.round(-snippet.y * scale + window.innerHeight / 2 - 64);
+
+    animate(panX, centerX, { 
+      type: "spring", 
+      stiffness: 100, 
+      damping: 20,
+      onUpdate: (value) => setPanX(Math.round(value))
+    });
+    animate(panY, centerY, { 
+      type: "spring", 
+      stiffness: 100, 
+      damping: 20,
+      onUpdate: (value) => setPanY(Math.round(value))
+    });
+
+    // Close sidebar after navigation on mobile
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const toggleTagFilter = (tag: string) => {
+    setTagFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(tag)) {
+        newFilters.delete(tag);
+      } else {
+        newFilters.add(tag);
+      }
+      return newFilters;
+    });
+  };
+
+  const clearAllFilters = () => {
+    setTagFilters(new Set());
+    setSearchQuery("");
+  };
+
+  const reorderSnippets = async (startIndex: number, endIndex: number) => {
+    if (!canEdit) return;
+    
+    const newOrder = [...snippetOrder];
+    const [removed] = newOrder.splice(startIndex, 1);
+    newOrder.splice(endIndex, 0, removed);
+    setSnippetOrder(newOrder);
+    
+    try {
+      await apiRequest(`/space/${spaceId}/order`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: newOrder })
+      });
+    } catch (error) {
+      console.error("Failed to update order:", error);
+    }
   };
 
   // Tag management
@@ -400,7 +547,6 @@ export default function Space({
     }
   };
 
-  // Tag color management
   const handleTagRightClick = (e: React.MouseEvent, tag: string) => {
     if (!canEdit) return;
     
@@ -409,8 +555,8 @@ export default function Space({
     setTagColorMenu({
       show: true,
       tag: tag,
-      x: e.clientX,
-      y: e.clientY
+      x: Math.round(e.clientX),
+      y: Math.round(e.clientY)
     });
   };
 
@@ -423,165 +569,9 @@ export default function Space({
         : snippet
     ));
     setTagColorMenu({ show: false, tag: "", x: 0, y: 0 });
-    
-    // TODO: Update database
-    // await updateSnippetsWithTag(tag, { color });
   };
 
-  // Delete snippet with WebSocket integration
-  const deleteSnippet = async (id: string) => {
-    if (!canEdit) return;
-    
-    // Optimistic update
-    setSnippets(prev => prev.filter(snippet => snippet.id !== id));
-    
-    // Send WebSocket update
-    if (sendSnippetDelete) {
-      sendSnippetDelete({ id });
-    }
-    
-    // Persist to database
-    try {
-      await fetch(`/api/space/${spaceData?.id}/snippet/${id}`, {
-        method: "DELETE"
-      });
-    } catch (error) {
-      console.error("Failed to delete snippet:", error);
-      // Optionally restore snippet on error
-    }
-  };
-
-  // Updated snippet position update with WebSocket integration
-  const updateSnippet = async (id: string, deltaX: number, deltaY: number) => {
-    if (!canEdit) return;
-
-    let updatedSnippet: Snippet | null = null;
-    setSnippets(prev => {
-      const updated = prev.map(snippet =>
-        snippet.id === id
-          ? {
-              ...snippet,
-              x: snippet.x + deltaX / scale,
-              y: snippet.y + deltaY / scale,
-              updatedAt: new Date()
-            }
-          : snippet
-      );
-      // Find the updated snippet after mapping
-      updatedSnippet = updated.find((s): s is Snippet => s.id === id) || null;
-      return updated;
-    });
-
-    // Immediate WebSocket update
-    // Use a setTimeout to ensure updatedSnippet is set after setSnippets runs
-    setTimeout(() => {
-      if (updatedSnippet && sendSnippetUpdate) {
-        sendSnippetUpdate({
-          id: updatedSnippet!.id,
-          x: updatedSnippet!.x,
-          y: updatedSnippet!.y,
-          updatedAt: updatedSnippet!.updatedAt.toISOString(),
-          movedBy: currentUser?.id
-        });
-      }
-    }, 0);
-
-    // Debounced HTTP persistence
-    if (debounceRef.current[id]) {
-      clearTimeout(debounceRef.current[id]);
-    }
-
-    debounceRef.current[id] = setTimeout(async () => {
-      const currentSnippet = snippets.find(s => s.id === id);
-      if (currentSnippet) {
-        try {
-          await fetch(`/api/space/${spaceData?.id}/snippet/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              x: currentSnippet.x,
-              y: currentSnippet.y
-            })
-          });
-        } catch (error) {
-          console.error("Position update failed:", error);
-        }
-      }
-    }, 1000);
-  };
-
-  // Navigate to snippet - still using framer-motion animate for smooth navigation
-  const navigateToSnippet = (snippet: Snippet) => {
-    const centerX = -snippet.x * scale + window.innerWidth / 2 - 96;
-    const centerY = -snippet.y * scale + window.innerHeight / 2 - 64;
-
-    // Using framer-motion animate for smooth navigation 
-    animate(panX, centerX, { 
-      type: "spring", 
-      stiffness: 100, 
-      damping: 20,
-      onUpdate: (value) => setPanX(value)
-    });
-    animate(panY, centerY, { 
-      type: "spring", 
-      stiffness: 100, 
-      damping: 20,
-      onUpdate: (value) => setPanY(value)
-    });
-  };
-
-  // Filter functions
-  const toggleTagFilter = (tag: string) => {
-    setTagFilters(prev => {
-      const newFilters = new Set(prev);
-      if (newFilters.has(tag)) {
-        newFilters.delete(tag);
-      } else {
-        newFilters.add(tag);
-      }
-      return newFilters;
-    });
-  };
-
-  const clearAllFilters = () => {
-    setTagFilters(new Set());
-    setSearchQuery("");
-  };
-
-  const matchesSearch = (snippet: Snippet, query: string) => {
-    if (!query.trim()) return true;
-    const searchTerm = query.toLowerCase().trim();
-    return (
-      snippet.title.toLowerCase().includes(searchTerm) ||
-      (snippet.description && snippet.description.toLowerCase().includes(searchTerm)) ||
-      snippet.tags.some(tag => tag.toLowerCase().includes(searchTerm)) ||
-      snippet.files.some(file => file.toLowerCase().includes(searchTerm)) ||
-      (snippet.code && snippet.code.toLowerCase().includes(searchTerm))
-    );
-  };
-
-  // Drag reorder function
-  const reorderSnippets = async (startIndex: number, endIndex: number) => {
-    if (!canEdit) return;
-    
-    const newOrder = [...snippetOrder];
-    const [removed] = newOrder.splice(startIndex, 1);
-    newOrder.splice(endIndex, 0, removed);
-    setSnippetOrder(newOrder);
-    
-    // TODO: Update order in database
-    try {
-      await fetch(`/api/space/${spaceData?.id}/order`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order: newOrder })
-      });
-    } catch (error) {
-      console.error("Failed to update order:", error);
-    }
-  };
-
-  // Apply filters and search
+  // Filter and sort snippets
   const filteredSnippets = snippets.filter(snippet => {
     if (!matchesSearch(snippet, searchQuery)) return false;
     if (tagFilters.size > 0) {
@@ -591,8 +581,7 @@ export default function Space({
     return true;
   });
 
-  // Sort snippets according to custom order
-  const sortedFilteredSnippets = filteredSnippets.sort((a, b) => {
+  const sortedSnippets = filteredSnippets.sort((a, b) => {
     const aIndex = snippetOrder.indexOf(a.id);
     const bIndex = snippetOrder.indexOf(b.id);
     if (aIndex === -1 && bIndex === -1) return 0;
@@ -601,121 +590,221 @@ export default function Space({
     return aIndex - bIndex;
   });
 
-  const visibleSnippets = sortedFilteredSnippets;
+  // Ensure snippets have totalViews property for sidebar compatibility and spaceId is always a string
+  const snippetsWithViews = snippets.map(snippet => ({
+    ...snippet,
+    totalViews: snippet.totalViews ?? 0,
+    spaceId: snippet.spaceId ?? (spaceId || "unknown")
+  }));
+
+  const sortedSnippetsWithViews = sortedSnippets.map(snippet => ({
+    ...snippet,
+    totalViews: snippet.totalViews ?? 0,
+    spaceId: snippet.spaceId ?? (spaceId || "unknown")
+  }));
 
   return (
-    <div
-      ref={containerRef}
-      className="w-screen h-screen bg-gray-300 relative overflow-hidden"
-      onWheel={handleWheel}
-    >
-      {/* Controls */}
-      <div className="fixed top-4 left-4 z-50 flex gap-2">
-        <button onClick={() => zoom(0.2)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">+</button>
-        <button onClick={() => zoom(-0.2)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">-</button>
-        {canEdit && (
-          <button onClick={addSnippet} className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
-            Add Snippet
-          </button>
-        )}
-        {spaceData && (
-          <div className="bg-white px-3 py-1 rounded shadow">
-            <span className="text-sm font-medium">{spaceData.name}</span>
-            {!spaceData.isPublic && <span className="ml-2 text-xs text-gray-500">Private</span>}
-          </div>
-        )}
+    <div className="flex h-screen bg-gray-300">
+      {/* Fixed Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-in-out ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } md:translate-x-0 md:static md:inset-0`}>
+        <Sidebar 
+          boxes={snippetsWithViews}
+          visibleBoxes={sortedSnippetsWithViews}
+          boxOrder={snippetOrder}
+          searchQuery={searchQuery}
+          tagFilters={tagFilters}
+          getAllTags={getAllTags}
+          onSearchChange={setSearchQuery}
+          onToggleTagFilter={toggleTagFilter}
+          onClearAllFilters={clearAllFilters}
+          onTagRightClick={handleTagRightClick}
+          onNavigateToBox={snippet => navigateToSnippet({ ...snippet, totalViews: snippet.totalViews ?? 0 })}
+          onReorderBoxes={reorderSnippets}
+          onStartEditing={snippet => startEditing({ ...snippet, totalViews: snippet.totalViews ?? 0 })}
+          canEdit={canEdit}
+          onClose={() => setSidebarOpen(false)}
+        />
       </div>
 
-      {/* User info */}
-      {currentUser && (
-        <div className="fixed top-4 right-4 z-50 bg-white px-3 py-1 rounded shadow">
-          <span className="text-sm">{currentUser.name || currentUser.username}</span>
-          <span className="ml-2 text-xs text-gray-500">({userRole})</span>
+      {/* Sidebar overlay for mobile */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden" 
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col md:ml-0">
+        {/* Header Controls */}
+        <div className="flex items-center justify-between p-4 bg-white shadow-sm border-b z-20">
+          <div className="flex items-center gap-2">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
+            {/* Space info */}
+            {spaceData && (
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-semibold text-gray-900">{spaceData.name}</h1>
+                {!spaceData.isPublic && (
+                  <span className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                    Private
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Zoom controls */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-md p-1">
+              <button 
+                onClick={() => zoom(-0.2)} 
+                className="p-1 text-gray-600 hover:text-gray-900 hover:bg-white rounded"
+                title="Zoom out"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              </button>
+              <span className="px-2 text-sm text-gray-600 min-w-[3rem] text-center">
+                {Math.round(scale * 100)}%
+              </span>
+              <button 
+                onClick={() => zoom(0.2)} 
+                className="p-1 text-gray-600 hover:text-gray-900 hover:bg-white rounded"
+                title="Zoom in"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Add snippet button */}
+            {canEdit && (
+              <button 
+                onClick={addSnippet} 
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span className="hidden sm:inline">Add Snippet</span>
+              </button>
+            )}
+
+            {/* WebSocket status indicator */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm ${
+              isJoined ? 'bg-green-100 text-green-800' : 
+              isConnected ? 'bg-yellow-100 text-yellow-800' : 
+              'bg-red-100 text-red-800'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                isJoined ? 'bg-green-600' : 
+                isConnected ? 'bg-yellow-600' : 
+                'bg-red-600'
+              }`} />
+              <span className="hidden sm:inline">
+                {isJoined ? 'Connected' : isConnected ? 'Joining...' : 'Disconnected'}
+              </span>
+            </div>
+
+            {/* User info */}
+            {currentUser && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-md">
+                <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                  {(currentUser.name || currentUser.username || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden sm:block">
+                  <div className="text-sm font-medium text-gray-900">
+                    {currentUser.name || currentUser.username}
+                  </div>
+                  <div className="text-xs text-gray-500">{userRole}</div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      )}
 
-      {/* Tag Color Menu */}
-      {tagColorMenu.show && (
-        <TagColorMenu 
-          tag={tagColorMenu.tag}
-          x={tagColorMenu.x}
-          y={tagColorMenu.y}
-          onColorSelect={changeTagColor}
-          onClose={() => setTagColorMenu({ show: false, tag: "", x: 0, y: 0 })}
-        />
-      )}
+        {/* Canvas Container */}
+        <div 
+          ref={containerRef}
+          className="flex-1 relative overflow-hidden"
+          onWheel={handleWheel}
+        >
+          {/* Tag Color Menu */}
+          {tagColorMenu.show && (
+            <TagColorMenu 
+              tag={tagColorMenu.tag}
+              x={tagColorMenu.x}
+              y={tagColorMenu.y}
+              onColorSelect={changeTagColor}
+              onClose={() => setTagColorMenu({ show: false, tag: "", x: 0, y: 0 })}
+            />
+          )}
 
-      {/* Edit Modal */}
-      {editingSnippet && (
-        <EditModal 
-          editingSnippet={editingSnippet}
-          editTitle={editTitle}
-          editDescription={editDescription}
-          editColor={editColor}
-          editTags={editTags}
-          editCode={editCode}
-          editCodeLanguage={editCodeLanguage}
-          newTag={newTag}
-          onTitleChange={setEditTitle}
-          onDescriptionChange={setEditDescription}
-          onColorChange={setEditColor}
-          onTagsChange={setEditTags}
-          onCodeChange={setEditCode}
-          onCodeLanguageChange={setEditCodeLanguage}
-          onNewTagChange={setNewTag}
-          onAddTag={addTag}
-          onRemoveTag={removeTag}
-          onTagKeyPress={handleTagKeyPress}
-          onSave={saveEdit}
-          onCancel={cancelEdit}
-          onDelete={deleteSnippet}
-          canDelete={canEdit}
-        />
-      )}
+          {/* Edit Modal */}
+          {editingSnippet && (
+            <EditModal 
+              editingSnippet={editingSnippet}
+              editTitle={editTitle}
+              editDescription={editDescription}
+              editColor={editColor}
+              editTags={editTags}
+              editCode={editCode}
+              editCodeLanguage={editCodeLanguage}
+              newTag={newTag}
+              onTitleChange={setEditTitle}
+              onDescriptionChange={setEditDescription}
+              onColorChange={setEditColor}
+              onTagsChange={setEditTags}
+              onCodeChange={setEditCode}
+              onCodeLanguageChange={setEditCodeLanguage}
+              onNewTagChange={setNewTag}
+              onAddTag={addTag}
+              onRemoveTag={removeTag}
+              onTagKeyPress={handleTagKeyPress}
+              onSave={saveEdit}
+              onCancel={resetEditState}
+              onDelete={deleteSnippet}
+              canDelete={canEdit}
+            />
+          )}
 
-      {/* Sidebar */}
-      <Sidebar 
-        boxes={snippets} // You may need to update Sidebar to handle Snippet type
-        visibleBoxes={visibleSnippets}
-        boxOrder={snippetOrder}
-        searchQuery={searchQuery}
-        tagFilters={tagFilters}
-        getAllTags={getAllTags}
-        onSearchChange={setSearchQuery}
-        onToggleTagFilter={toggleTagFilter}
-        onClearAllFilters={clearAllFilters}
-        onTagRightClick={handleTagRightClick}
-        onNavigateToBox={navigateToSnippet}
-        onReorderBoxes={reorderSnippets}
-        onStartEditing={startEditing}
-        canEdit={canEdit}
-      />
-
-      {/* Canvas - Native pan container */}
-      <div
-        ref={canvasRef}
-        className="w-full h-full cursor-grab"
-        style={{ 
-          transform: `scale(${scale}) translate(${panX}px, ${panY}px)`,
-          cursor: isDragging ? 'grabbing' : 'grab'
-        }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-      >
-        {/* Snippets (rendered as boxes) */}
-        {visibleSnippets.map(snippet => (
-          <Box 
-            key={snippet.id}
-            snippet={snippet}
-            scale={scale}
-            onUpdatePosition={updateSnippet}
-            onStartEditing={startEditing}
-            onTagRightClick={handleTagRightClick}
-            onFilesChanged={handleFilesChanged}
-            canEdit={canEdit}
-          />
-        ))}
+          {/* Canvas */}
+          <div
+            ref={canvasRef}
+            className="w-full h-full cursor-grab"
+            style={{
+              transform: `scale(${scale}) translate(${panX}px, ${panY}px)`,
+              cursor: isDragging ? 'grabbing' : 'grab'
+            }}
+            onMouseDown={handleMouseDown}
+          >
+            {sortedSnippets.map(snippet => (
+              <Box
+                key={snippet.id || "undefined hai"}
+                snippet={snippet}
+                scale={scale}
+                onUpdatePosition={updateSnippet}
+                onStartEditing={startEditing}
+                onTagRightClick={handleTagRightClick}
+                onFilesChanged={handleFilesChanged}
+                canEdit={canEdit}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

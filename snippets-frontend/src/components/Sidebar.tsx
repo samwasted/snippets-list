@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-xl">
           {!isCollapsed && (
             <div className="flex-1">
-              <h3 className="font-bold text-gray-800 text-lg bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              <h3 className="font-bold text-gray-800 text-lg bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text ">
                 Space Navigator
               </h3>
               <p className="text-xs text-gray-600 mt-1">Manage your workspace</p>
@@ -275,7 +275,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           <div className="flex flex-wrap gap-1 pl-9">
                             {box.tags.map(tag => (
                               <span
-                                key={tag}
+                                key={`${box.id}-${tag}`}
                                 onContextMenu={(e) => onTagRightClick(e, tag)}
                                 className="inline-block bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full cursor-context-menu hover:from-gray-200 hover:to-gray-300 transition-all duration-200 shadow-sm"
                               >
