@@ -11,14 +11,11 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.8",
-    "axios": "^1.9.0",
     "framer-motion": "^12.15.0",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-draggable": "^4.4.6",
-    "react-router-dom": "^7.6.2",
-    "react-use-websocket": "^4.13.0",
     "react-zoom-pan-pinch": "^3.7.0",
     "reactflow": "^11.11.4",
     "tailwindcss": "^4.1.8"

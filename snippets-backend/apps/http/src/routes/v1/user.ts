@@ -13,7 +13,7 @@ import client from "@repo/db";
 export const userRouter = Router();
 
 
-// User metadata 
+// User metadata (using User table fields directly since no UserMetadata table exists)
 userRouter.post("/metadata", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
 
@@ -47,7 +47,7 @@ userRouter.post("/metadata", userMiddleware, async (req, res) => { //validated
     }
 });
 
-// User profile
+
 userRouter.get("/metadata", userMiddleware, async (req, res) => { //validated
     const userId = req.userId!;
     
@@ -87,6 +87,25 @@ userRouter.get("/metadata/bulk", userMiddleware, async (req, res) => { //validat
         pagination: { page, limit }
     });
 });
+
+// User profile
+userRouter.get("/profile", userMiddleware, async (req, res) => { //validated
+    const userId = req.userId!;
+    
+    const user = await client.user.findUnique({
+        where: { id: userId },
+        select: {
+            id: true,
+            username: true,
+            name: true,
+            role: true,
+            createdAt: true
+        }
+    });
+    
+    res.json({ user });
+});
+
 
 // Change password
 userRouter.put("/password", userMiddleware, async (req, res) => { //validated

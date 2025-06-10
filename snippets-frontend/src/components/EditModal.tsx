@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import type { Snippet } from "./types";
+import type { Box as BoxType } from "./types";
 import { colors, colorNames} from "./types";
 
 // Major programming languages for the dropdown
@@ -44,15 +44,15 @@ const getFileExtension = (language: string): string => {
 };
 
 interface EditModalProps {
-  editingSnippet: Snippet;
-  editTitle: string;
+  editingBox: BoxType;
+  editText: string;
   editDescription: string;
   editColor: string;
   editTags: string[];
   editCode: string;
   editCodeLanguage: string;
   newTag: string;
-  onTitleChange: (title: string) => void;
+  onTextChange: (text: string) => void;
   onDescriptionChange: (description: string) => void;
   onColorChange: (color: string) => void;
   onTagsChange: (tags: string[]) => void;
@@ -65,19 +65,18 @@ interface EditModalProps {
   onSave: () => void;
   onCancel: () => void;
   onDelete: (id: string) => void;
-  canDelete?: boolean;
 }
 
 const EditModal: React.FC<EditModalProps> = ({
-  editingSnippet,
-  editTitle,
+  editingBox,
+  editText,
   editDescription,
   editColor,
   editTags,
   editCode,
   editCodeLanguage,
   newTag,
-  onTitleChange,
+  onTextChange,
   onDescriptionChange,
   onColorChange,
   onCodeChange,
@@ -85,11 +84,9 @@ const EditModal: React.FC<EditModalProps> = ({
   onNewTagChange,
   onAddTag,
   onRemoveTag,
-  onTagKeyPress,
   onSave,
   onCancel,
-  onDelete,
-  canDelete = true
+  onDelete
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,7 +137,7 @@ const EditModal: React.FC<EditModalProps> = ({
     if (!editCode.trim()) return;
 
     const extension = getFileExtension(editCodeLanguage);
-    const filename = editTitle ? `${editTitle}${extension}` : `code${extension}`;
+    const filename = editText ? `${editText}${extension}` : `code${extension}`;
     
     const blob = new Blob([editCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -164,7 +161,7 @@ const EditModal: React.FC<EditModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-[600px] max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-semibold mb-4 text-gray-800">
-          Edit Snippet
+          Edit Box
         </h3>
         
         <div className="mb-4">
@@ -173,10 +170,10 @@ const EditModal: React.FC<EditModalProps> = ({
           </label>
           <input
             type="text"
-            value={editTitle}
-            onChange={(e) => onTitleChange(e.target.value)}
+            value={editText}
+            onChange={(e) => onTextChange(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter snippet title..."
+            placeholder="Enter box title..."
             autoFocus
           />
         </div>
@@ -298,7 +295,7 @@ const EditModal: React.FC<EditModalProps> = ({
               type="text"
               value={newTag}
               onChange={(e) => onNewTagChange(e.target.value)}
-              onKeyDown={onTagKeyPress}
+              onKeyDown={(e) => e.key === 'Enter' && onAddTag()}
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               placeholder="Add a tag..."
             />
@@ -363,17 +360,15 @@ const EditModal: React.FC<EditModalProps> = ({
           >
             Cancel
           </button>
-          {canDelete && (
-            <button
-              onClick={() => {
-                onDelete(editingSnippet.id);
-                onCancel();
-              }}
-              className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700"
-            >
-              Delete
-            </button>
-          )}
+          <button
+            onClick={() => {
+              onDelete(editingBox.id);
+              onCancel();
+            }}
+            className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700"
+          >
+            Delete
+          </button>
         </div>
       </div>
     </div>
