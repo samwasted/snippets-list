@@ -76,6 +76,7 @@ export const colorNames = {
 export interface IncomingSnippetMovedMessage {
   type: 'snippet-moved';
   payload: {
+    id: string;
     snippetId: string;
     x: number;
     y: number;
@@ -87,6 +88,7 @@ export interface IncomingSnippetMovedMessage {
 export interface IncomingSnippetCreatedMessage {
   type: 'snippet-created';
   payload: {
+    createdBy: string | undefined;
     id: string;
     title: string;
     description?: string;
@@ -114,6 +116,7 @@ export interface IncomingSnippetDeletedMessage {
 export interface IncomingSnippetUpdatedMessage {
   type: 'snippet-updated';
   payload: {
+    updatedBy: string | undefined;
     id: string;
     title?: string;
     description?: string;

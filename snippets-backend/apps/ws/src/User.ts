@@ -114,6 +114,17 @@ export class User {
                 console.log("Received message:", parsedData);
 
                 switch (parsedData.type) {
+                    case "connection-established":
+                        // Send confirmation that server is ready
+                        this.send({
+                            type: "connection-established",
+                            payload: {
+                                connectionId: this.id,
+                                timestamp: new Date().toISOString()
+                            }
+                        });
+                        break;
+
                     case "join":
                         await this.handleJoin(parsedData.payload);
                         break;
@@ -134,6 +145,11 @@ export class User {
                         await this.handleSnippetDelete(parsedData.payload);
                         break;
 
+                    case "pong":
+                        // Handle pong response (optional logging)
+                        console.log("Received pong from client");
+                        break;
+
                     default:
                         console.log("Unknown message type:", parsedData.type);
                 }
@@ -151,6 +167,16 @@ export class User {
         this.ws.on("close", () => {
             this.destroy();
         });
+
+        //Send initial ping to establish connection
+        setTimeout(() => {
+            this.send({
+                type: "ping",
+                payload: {
+                    timestamp: new Date().toISOString()
+                }
+            });
+        }, 1000);
     }
 
     private async handleJoin(payload: { spaceId: string; token: string }): Promise<void> {
@@ -325,7 +351,6 @@ export class User {
             return;
         }
 
-        // Check if user has editor permissions
         const access = await this.checkSpaceAccess(this.spaceId, this.userId, 'EDITOR');
         if (!access) {
             this.send({
@@ -339,7 +364,6 @@ export class User {
         }
 
         try {
-            // Update snippet position in database
             const updatedSnippet = await client.snippet.update({
                 where: {
                     id: payload.snippetId,
@@ -351,18 +375,17 @@ export class User {
                 }
             });
 
-            // Broadcast snippet movement to all users in the space
+            // FIXED: Send the required snippetId, x, y, and movedBy in the broadcast
             RoomManager.getInstance().broadcast({
                 type: "snippet-moved",
                 payload: {
-                    snippetId: payload.snippetId,
-                    x: payload.x,
-                    y: payload.y,
+                    snippetId: updatedSnippet.id,
+                    x: updatedSnippet.x,
+                    y: updatedSnippet.y,
                     movedBy: this.userId
                 }
             }, this, this.spaceId);
 
-            // Confirm to the user who moved it
             this.send({
                 type: "snippet-move-confirmed",
                 payload: {
@@ -394,57 +417,66 @@ export class User {
         x: number;
         y: number;
     }): Promise<void> {
-        if (!this.spaceId || !this.userId) {
-            this.send({
-                type: "error",
-                payload: { message: "Not authenticated" }
-            });
-            return;
-        }
+        {
+            if (!this.spaceId || !this.userId) {
+                this.send({
+                    type: "error",
+                    payload: { message: "Not authenticated" }
+                });
+                return;
+            }
 
-        const access = await this.checkSpaceAccess(this.spaceId, this.userId, 'EDITOR');
-        if (!access) {
-            this.send({
-                type: "snippet-create-rejected",
-                payload: { message: "Insufficient permissions" }
-            });
-            return;
-        }
+            const access = await this.checkSpaceAccess(this.spaceId, this.userId, 'EDITOR');
+            if (!access) {
+                this.send({
+                    type: "snippet-create-rejected",
+                    payload: { message: "Insufficient permissions" }
+                });
+                return;
+            }
 
-        try {
-            const snippet = await client.snippet.create({
-                data: {
-                    title: payload.title,
-                    description: payload.description,
-                    code: payload.code,
-                    tags: payload.tags || [],
-                    color: payload.color,
-                    files: payload.files || [],
-                    x: payload.x,
-                    y: payload.y,
-                    ownerId: this.userId,
-                    spaceId: this.spaceId
-                }
-            });
+           try {
+    const snippet = await client.snippet.create({
+      data: {
+        title: payload.title,
+        description: payload.description,
+        code: payload.code,
+        tags: payload.tags || [],
+        color: payload.color,
+        files: payload.files || [],
+        x: payload.x,
+        y: payload.y,
+        ownerId: this.userId,
+        spaceId: this.spaceId
+      }
+    });
 
-            // Broadcast new snippet to all users
-            RoomManager.getInstance().broadcast({
-                type: "snippet-created",
-                payload: {
-                    snippet,
-                    createdBy: this.userId
-                }
-            }, this, this.spaceId);
+    // FIXED: Send the complete snippet data
+    RoomManager.getInstance().broadcast({
+          type: "snippet-created",
+          payload: {
+            snippet: snippet, // Wrap snippet object
+            createdBy: this.userId
+          }
+        }, this, this.spaceId);
 
-        } catch (error) {
-            console.error("Error creating snippet:", error);
-            this.send({
-                type: "snippet-create-rejected",
-                payload: { message: "Failed to create snippet" }
-            });
+    // Confirm to sender
+    this.send({
+      type: "snippet-create-confirmed",
+      payload: {
+        snippet: snippet
+      }
+    });
+
+  } catch (error) {
+    console.error("Error creating snippet:", error);
+    this.send({
+      type: "snippet-create-rejected",
+      payload: { message: "Failed to create snippet" }
+    });
+  }
         }
     }
-
     private async handleSnippetUpdate(payload: { snippetId: string;[key: string]: any }): Promise<void> {
         if (!this.spaceId || !this.userId) {
             this.send({
