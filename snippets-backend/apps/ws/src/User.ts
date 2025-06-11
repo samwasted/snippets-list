@@ -1,11 +1,18 @@
 import { WebSocket } from "ws";
 import { RoomManager } from "./RoomManager";
-import { OutgoingMessage, CollaboratorRole, SpaceAccess } from "./types";
-import client from "@repo/db"
+import { 
+    OutgoingMessage, 
+    CollaboratorRole, 
+    SpaceAccess,
+    SnippetData,
+    SpaceWithRelations,
+    ConnectedUser
+} from "./types";
+import client from "@repo/db";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { JWT_PASSWORD } from "./config";
 
-function getRandomString(length: number): string {  //just to help, idk if I needed this
+function getRandomString(length: number): string {
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let result = "";
     for (let i = 0; i < length; i++) {
@@ -16,20 +23,33 @@ function getRandomString(length: number): string {  //just to help, idk if I nee
 
 export class User {
     public id: string;
-    public userId?: string;
-    private spaceId?: string;
+    public userId: string | null = null;
+    private spaceId: string | null = null;
     private ws: WebSocket;
-    private userRole?: CollaboratorRole;
+    private userRole: CollaboratorRole | null = null;
+    private routeSpaceId: string | undefined;
 
-    constructor(ws: WebSocket) {
-        this.id = getRandomString(10); //we dont need an actual id, this is just for the ws connection
+    constructor(ws: WebSocket, routeSpaceId?: string) {
+        this.id = getRandomString(10);
         this.ws = ws;
+        this.routeSpaceId = routeSpaceId;
         this.initHandlers();
+        if (routeSpaceId) {
+            console.log(`WebSocket connection initialized for space: ${routeSpaceId}`);
+        }
+    }
+
+    public getRouteSpaceId(): string | undefined {
+        return this.routeSpaceId;
+    }
+
+    public getUserRole(): CollaboratorRole | null {
+        return this.userRole;
     }
 
     private async checkSpaceAccess(
-        spaceId: string, 
-        userId: string, 
+        spaceId: string,
+        userId: string,
         requiredRole: 'VIEWER' | 'EDITOR' | 'ADMIN' = 'VIEWER'
     ): Promise<SpaceAccess | null> {
         try {
@@ -41,56 +61,87 @@ export class User {
                         select: {
                             role: true
                         }
-                    }
+                    },
+                    snippets: true // Add this line to include snippets
                 }
             });
 
             if (!space) return null;
-            
-            // Owner has full access
-            if (space.ownerId === userId){
-                // Convert null description to undefined to match type
-                const fixedSpace = { 
-                    ...space, 
-                    description: space.description === null ? undefined : space.description,
+
+            if (space.ownerId === userId) {
+                const owner = await client.user.findUnique({
+                    where: { id: space.ownerId },
+                    select: { id: true, username: true, name: true }
+                });
+
+                if (!owner) {
+                    // If owner is not found, reject access
+                    return null;
+                }
+                const fixedSpace = {
+                    ...space,
+                    description: space.description,
                     collaborators: space.collaborators.map(c => ({
                         role: c.role,
-                        userId: userId // Since only the owner is present, use the current userId
-                    }))
+                        userId: userId
+                    })),
+                    snippets: space.snippets ?? [],
+                    owner: owner
                 };
-                return { space: fixedSpace, role: 'OWNER' as const };
-            } 
-            
-            // Check if public space (viewers can access)
-            if (space.isPublic && requiredRole === 'VIEWER') {
-                // Convert null description to undefined to match type
-                const fixedSpace = { 
-                    ...space, 
-                    description: space.description === null ? undefined : space.description,
-                    collaborators: space.collaborators.map(c => ({
-                        role: c.role,
-                        userId: userId // Since only the owner is present, use the current userId
-                    }))
-                };
-                return { space: fixedSpace, role: 'VIEWER' as const };
+                return { space: fixedSpace, role: 'OWNER' as CollaboratorRole };
             }
-            
-            // Check collaborator permissions
+
+            if (space.isPublic && requiredRole === 'VIEWER') {
+                const owner = await client.user.findUnique({
+                    where: { id: space.ownerId },
+                    select: { id: true, username: true, name: true }
+                });
+
+                if (!owner) {
+                    // If owner is not found, reject access
+                    return null;
+                }
+
+                const fixedSpace = {
+                    ...space,
+                    description: space.description,
+                    collaborators: space.collaborators.map(c => ({
+                        role: c.role,
+                        userId: userId
+                    })),
+                    snippets: space.snippets ?? [],
+                    owner: owner
+                };
+                return { space: fixedSpace, role: 'VIEWER' as CollaboratorRole };
+            }
+
             const collaboration = space.collaborators[0];
             if (!collaboration) return null;
-            
+
             const roleHierarchy = { 'VIEWER': 1, 'EDITOR': 2, 'ADMIN': 3 };
             const role = collaboration.role as keyof typeof roleHierarchy;
             const hasPermission = roleHierarchy[role] >= roleHierarchy[requiredRole];
-            
+
             if (hasPermission) {
-                const fixedSpace = { 
-                    ...space, 
-                    description: space.description === null ? undefined : space.description,
+                const owner = await client.user.findUnique({
+                    where: { id: space.ownerId },
+                    select: { id: true, username: true, name: true }
+                });
+
+                if (!owner) {
+                    // If owner is not found, reject access
+                    return null;
+                }
+
+                const fixedSpace = {
+                    ...space,
+                    description: space.description,
                     collaborators: space.collaborators.map(c => ({
                         role: c.role,
-                        userId: userId // Use the current userId for collaborators
-                    }))
+                        userId: userId
+                    })),
+                    snippets: space.snippets ?? [],
+                    owner: owner
                 };
                 return { space: fixedSpace, role: collaboration.role as CollaboratorRole };
             }
@@ -101,33 +152,41 @@ export class User {
         }
     }
 
+    private generateMessageId(type: string): string {
+        return `${type}_${Date.now()}_${Math.random()}_${this.userId || 'unknown'}`;
+    }
+
     private initHandlers(): void {
         this.ws.on("message", async (data) => {
             try {
                 const parsedData = JSON.parse(data.toString());
                 console.log("Received message:", parsedData);
-                
+
                 switch (parsedData.type) {
                     case "join":
                         await this.handleJoin(parsedData.payload);
                         break;
-                    
                     case "snippet-move":
                         await this.handleSnippetMove(parsedData.payload);
                         break;
-                    
                     case "snippet-create":
                         await this.handleSnippetCreate(parsedData.payload);
                         break;
-                    
                     case "snippet-update":
                         await this.handleSnippetUpdate(parsedData.payload);
                         break;
-                    
                     case "snippet-delete":
                         await this.handleSnippetDelete(parsedData.payload);
                         break;
-                    
+                    case "ping":
+                        this.send({
+                            type: "pong",
+                            payload: {
+                                timestamp: new Date().toISOString(),
+                                originalTimestamp: parsedData.payload?.timestamp
+                            }
+                        });
+                        break;
                     default:
                         console.log("Unknown message type:", parsedData.type);
                 }
@@ -145,16 +204,45 @@ export class User {
         this.ws.on("close", () => {
             this.destroy();
         });
+
+        // Send connection established message
+        this.send({
+            type: "connection-established",
+            payload: {
+                timestamp: new Date().toISOString()
+            }
+        });
     }
 
     private async handleJoin(payload: { spaceId: string; token: string }): Promise<void> {
         try {
-            const { spaceId, token } = payload;
-            
-            // Verify JWT token - use the same approach as HTTP routes
+            const spaceId = this.routeSpaceId || payload.spaceId;
+            if (!spaceId) {
+                this.send({
+                    type: "join-rejected",
+                    payload: {
+                        message: "No space ID provided"
+                    }
+                });
+                this.ws.close();
+                return;
+            }
+
+            if (this.routeSpaceId && payload.spaceId && payload.spaceId !== this.routeSpaceId) {
+                this.send({
+                    type: "join-rejected",
+                    payload: {
+                        message: "Space ID mismatch with connection route"
+                    }
+                });
+                this.ws.close();
+                return;
+            }
+
+            const { token } = payload;
             const decoded = jwt.verify(token, process.env.JWT_PASSWORD || JWT_PASSWORD) as { userId: string, role: string };
             const userId = decoded.userId;
-            
+
             if (!userId) {
                 this.send({
                     type: "join-rejected",
@@ -166,7 +254,6 @@ export class User {
                 return;
             }
 
-            // Verify user still exists (like refresh-token endpoint does)
             const user = await client.user.findUnique({
                 where: { id: userId },
                 select: {
@@ -188,7 +275,6 @@ export class User {
                 return;
             }
 
-            // Check space access
             const access = await this.checkSpaceAccess(spaceId, userId);
             if (!access) {
                 this.send({
@@ -205,10 +291,8 @@ export class User {
             this.spaceId = spaceId;
             this.userRole = access.role;
 
-            // Add user to room
             RoomManager.getInstance().addUser(spaceId, this);
 
-            // Get current space data with snippets
             const spaceData = await client.space.findUnique({
                 where: { id: spaceId },
                 include: {
@@ -225,7 +309,9 @@ export class User {
                             y: true,
                             totalViews: true,
                             createdAt: true,
-                            updatedAt: true
+                            updatedAt: true,
+                            ownerId: true,
+                            spaceId: true
                         }
                     },
                     owner: {
@@ -234,26 +320,23 @@ export class User {
                 }
             });
 
-            // Get other users in the space
             const otherUsers = RoomManager.getInstance().getUsers(spaceId)
                 ?.filter(u => u.id !== this.id)
-                ?.map(u => ({ 
-                    id: u.id, 
+                ?.map(u => ({
+                    id: u.id,
                     userId: u.userId,
-                    role: u.userRole 
+                    role: u.getUserRole()
                 })) ?? [];
 
-            // Send space joined confirmation
             this.send({
                 type: "space-joined",
                 payload: {
-                    space: spaceData,
+                    space: spaceData as unknown as SpaceWithRelations,
                     userRole: this.userRole,
                     users: otherUsers
                 }
             });
 
-            // Broadcast user joined to others
             RoomManager.getInstance().broadcast({
                 type: "user-joined",
                 payload: {
@@ -261,14 +344,13 @@ export class User {
                     userId: this.userId,
                     role: this.userRole
                 }
-            }, this, this.spaceId!);
+            }, this, this.spaceId);
 
             console.log(`User ${userId} joined space ${spaceId} with role ${this.userRole}`);
 
         } catch (error) {
             console.error("Error handling join:", error);
-            
-            // Provide more specific error messages based on JWT error types
+
             let errorMessage = "Authentication failed";
             if (error instanceof jwt.JsonWebTokenError) {
                 errorMessage = "Invalid token";
@@ -277,7 +359,7 @@ export class User {
             } else if (error instanceof jwt.NotBeforeError) {
                 errorMessage = "Token not active";
             }
-            
+
             this.send({
                 type: "join-rejected",
                 payload: {
@@ -297,7 +379,6 @@ export class User {
             return;
         }
 
-        // Check if user has editor permissions
         const access = await this.checkSpaceAccess(this.spaceId, this.userId, 'EDITOR');
         if (!access) {
             this.send({
@@ -311,36 +392,39 @@ export class User {
         }
 
         try {
-            // Update snippet position in database
             const updatedSnippet = await client.snippet.update({
-                where: { 
+                where: {
                     id: payload.snippetId,
                     spaceId: this.spaceId
                 },
                 data: {
-                    x: payload.x,
-                    y: payload.y
+                    x: Math.round(payload.x),
+                    y: Math.round(payload.y)
                 }
             });
 
-            // Broadcast snippet movement to all users in the space
+            // Fixed to match OutgoingMessage type
             RoomManager.getInstance().broadcast({
                 type: "snippet-moved",
                 payload: {
+                    id: payload.snippetId,
                     snippetId: payload.snippetId,
-                    x: payload.x,
-                    y: payload.y,
+                    x: Math.round(payload.x),
+                    y: Math.round(payload.y),
+                    updatedAt: updatedSnippet.updatedAt.toISOString(),
                     movedBy: this.userId
-                }
+                },
+                userId: this.userId,
+                messageId: this.generateMessageId("snippet-moved"),
+                timestamp: new Date().toISOString()
             }, this, this.spaceId);
 
-            // Confirm to the user who moved it
             this.send({
                 type: "snippet-move-confirmed",
                 payload: {
                     snippetId: payload.snippetId,
-                    x: payload.x,
-                    y: payload.y
+                    x: Math.round(payload.x),
+                    y: Math.round(payload.y)
                 }
             });
 
@@ -357,13 +441,13 @@ export class User {
     }
 
     private async handleSnippetCreate(payload: {
-        title: string; 
-        description?: string; 
-        code?: string; 
-        tags?: string[]; 
-        color?: string; 
-        files?: string[]; 
-        x: number; 
+        title: string;
+        description?: string | null;
+        code?: string | null;
+        tags?: string[];
+        color?: string | null;
+        files?: string[];
+        x: number;
         y: number;
     }): Promise<void> {
         if (!this.spaceId || !this.userId) {
@@ -387,25 +471,41 @@ export class User {
             const snippet = await client.snippet.create({
                 data: {
                     title: payload.title,
-                    description: payload.description,
-                    code: payload.code,
+                    description: payload.description || null,
+                    code: payload.code || null,
                     tags: payload.tags || [],
-                    color: payload.color,
+                    color: payload.color || 'bg-gray-400',
                     files: payload.files || [],
-                    x: payload.x,
-                    y: payload.y,
+                    x: Math.round(payload.x),
+                    y: Math.round(payload.y),
                     ownerId: this.userId,
                     spaceId: this.spaceId
                 }
             });
 
-            // Broadcast new snippet to all users
+            // Fixed to match OutgoingMessage type
             RoomManager.getInstance().broadcast({
                 type: "snippet-created",
                 payload: {
-                    snippet,
+                    id: snippet.id,
+                    snippetId: snippet.id,
+                    title: snippet.title,
+                    description: snippet.description,
+                    code: snippet.code,
+                    tags: snippet.tags,
+                    color: snippet.color,
+                    files: snippet.files,
+                    x: snippet.x,
+                    y: snippet.y,
+                    spaceId: snippet.spaceId || "",
+                    ownerId: snippet.ownerId,
+                    createdAt: snippet.createdAt.toISOString(),
+                    updatedAt: snippet.updatedAt.toISOString(),
                     createdBy: this.userId
-                }
+                },
+                userId: this.userId,
+                messageId: this.generateMessageId("snippet-created"),
+                timestamp: new Date().toISOString()
             }, this, this.spaceId);
 
         } catch (error) {
@@ -430,9 +530,9 @@ export class User {
         if (!access) {
             this.send({
                 type: "snippet-update-rejected",
-                payload: { 
+                payload: {
                     snippetId: payload.snippetId,
-                    message: "Insufficient permissions" 
+                    message: "Insufficient permissions"
                 }
             });
             return;
@@ -440,30 +540,48 @@ export class User {
 
         try {
             const { snippetId, ...updateData } = payload;
+
+            // Process numeric coordinates
+            if (updateData.x !== undefined) updateData.x = Math.round(updateData.x);
+            if (updateData.y !== undefined) updateData.y = Math.round(updateData.y);
+
             const updatedSnippet = await client.snippet.update({
-                where: { 
+                where: {
                     id: snippetId,
                     spaceId: this.spaceId
                 },
                 data: updateData
             });
 
-            // Broadcast snippet update to all users
+            // Fixed to match OutgoingMessage type
             RoomManager.getInstance().broadcast({
                 type: "snippet-updated",
                 payload: {
-                    snippet: updatedSnippet,
+                    id: snippetId,
+                    snippetId: snippetId,
+                    title: updatedSnippet.title,
+                    description: updatedSnippet.description,
+                    code: updatedSnippet.code,
+                    tags: updatedSnippet.tags,
+                    color: updatedSnippet.color,
+                    files: updatedSnippet.files,
+                    x: updatedSnippet.x,
+                    y: updatedSnippet.y,
+                    updatedAt: updatedSnippet.updatedAt.toISOString(),
                     updatedBy: this.userId
-                }
+                },
+                userId: this.userId,
+                messageId: this.generateMessageId("snippet-updated"),
+                timestamp: new Date().toISOString()
             }, this, this.spaceId);
 
         } catch (error) {
             console.error("Error updating snippet:", error);
             this.send({
                 type: "snippet-update-rejected",
-                payload: { 
+                payload: {
                     snippetId: payload.snippetId,
-                    message: "Failed to update snippet" 
+                    message: "Failed to update snippet"
                 }
             });
         }
@@ -482,9 +600,9 @@ export class User {
         if (!access) {
             this.send({
                 type: "snippet-delete-rejected",
-                payload: { 
+                payload: {
                     snippetId: payload.snippetId,
-                    message: "Insufficient permissions" 
+                    message: "Insufficient permissions"
                 }
             });
             return;
@@ -492,44 +610,43 @@ export class User {
 
         try {
             await client.snippet.delete({
-                where: { 
+                where: {
                     id: payload.snippetId,
                     spaceId: this.spaceId
                 }
             });
 
-            // Broadcast snippet deletion to all users
+            // Fixed to match OutgoingMessage type
             RoomManager.getInstance().broadcast({
                 type: "snippet-deleted",
                 payload: {
+                    id: payload.snippetId,
                     snippetId: payload.snippetId,
                     deletedBy: this.userId
-                }
+                },
+                userId: this.userId,
+                messageId: this.generateMessageId("snippet-deleted"),
+                timestamp: new Date().toISOString()
             }, this, this.spaceId);
 
         } catch (error) {
             console.error("Error deleting snippet:", error);
             this.send({
                 type: "snippet-delete-rejected",
-                payload: { 
+                payload: {
                     snippetId: payload.snippetId,
-                    message: "Failed to delete snippet" 
+                    message: "Failed to delete snippet"
                 }
             });
         }
     }
 
     public isSocketOpen(): boolean {
-        return this.ws && this.ws.readyState === WebSocket.OPEN;
-    }
-
-    public getUserRole(): CollaboratorRole | undefined {
-        return this.userRole;
+        return this.ws.readyState === WebSocket.OPEN;
     }
 
     public destroy(): void {
         if (this.spaceId) {
-            // Broadcast user left to others
             RoomManager.getInstance().broadcast({
                 type: "user-left",
                 payload: {
@@ -538,14 +655,19 @@ export class User {
                 }
             }, this, this.spaceId);
 
-            // Remove user from room
             RoomManager.getInstance().removeUser(this, this.spaceId);
         }
     }
 
     public send(payload: OutgoingMessage): void {
         if (this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(payload));
+            const messageWithMeta = {
+                ...payload,
+                userId: payload.userId || this.userId,
+                timestamp: payload.timestamp || new Date().toISOString(),
+                messageId: payload.messageId || this.generateMessageId(payload.type)
+            };
+            this.ws.send(JSON.stringify(messageWithMeta));
         }
     }
 }
