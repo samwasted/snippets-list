@@ -31,9 +31,6 @@ export type OutgoingMessage =
   | { type: "user-joined"; payload: { id: string; userId: string; role: string } }
   | { type: "user-left"; payload: { id: string; userId: string } }
   | { type: "error"; payload: { message: string } }
-  | {type: "connection-established"; payload: any} //for da fix
-  | {type: "ping"; payload: any} //for da fix
-  | { type: "snippet-create-confirmed"; payload: any} //for da fix
 
 // Additional types for better type safety
 // Using the Role enum from Prisma schema, plus OWNER for space owners

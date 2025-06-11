@@ -12,8 +12,8 @@ interface UseSpaceWebSocketReturn {
   isConnected: boolean;
   isJoined: boolean;
   lastMessage: WebSocketMessage | null;
-  connectionState: string;
-  lastError: string | null;
+  connectionState: string; // Add connection state for debugging
+  lastError: string | null; // Track last error
   sendSnippetMove: (payload: { snippetId: string; x: number; y: number }) => void;
   sendSnippetCreate: (payload: any) => void;
   sendSnippetDelete: (payload: { snippetId: string }) => void;
@@ -42,6 +42,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
   const maxReconnectAttempts = 5;
   const baseReconnectDelayMs = 1000;
 
+  // Bootstrap mountedRef properly
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -49,6 +50,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
     };
   }, []);
 
+  // Update token ref when token changes
   useEffect(() => {
     currentTokenRef.current = token;
   }, [token]);
@@ -102,6 +104,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
     }
 
     try {
+      // Clean up existing connection
       if (wsRef.current) {
         wsRef.current.close(1000, 'Reconnecting');
         wsRef.current = null;
@@ -119,6 +122,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
       wsRef.current = ws;
       isManuallyClosedRef.current = false;
 
+      // Connection timeout
       const connectionTimeout = setTimeout(() => {
         if (ws.readyState === WebSocket.CONNECTING) {
           console.log('WebSocket connection timeout');
@@ -142,13 +146,8 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
         setLastError(null);
         reconnectAttemptsRef.current = 0;
 
-        // Send connection-established message to trigger server setup
-        ws.send(JSON.stringify({
-          type: 'connection-established',
-          payload: {
-            timestamp: new Date().toISOString()
-          }
-        }));
+        // Wait for server's connection-established message before joining
+        // This gives the server time to fully initialize
       };
 
       ws.onmessage = (event) => {
@@ -159,8 +158,10 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
           console.log('WebSocket message received:', message);
           setLastMessage(message);
 
+          // Handle specific message types
           switch (message.type) {
             case 'ping':
+              // Respond to server ping to keep connection alive
               if (wsRef.current?.readyState === WebSocket.OPEN) {
                 try {
                   wsRef.current.send(JSON.stringify({
@@ -180,6 +181,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
               console.log('Connection established, server ready');
               connectionIdRef.current = message.payload?.connectionId || null;
               
+              // Now join the space if we have a token
               if (currentTokenRef.current) {
                 setTimeout(() => {
                   joinSpace();
@@ -232,6 +234,25 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
         const closeMsg = `WebSocket closed: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`;
         console.log(closeMsg);
         
+        // Log specific close codes for debugging
+        const closeReasons = {
+          1000: 'Normal closure',
+          1001: 'Going away',
+          1002: 'Protocol error',
+          1003: 'Unsupported data type',
+          1006: 'Abnormal closure (no close frame)',
+          1008: 'Policy violation',
+          1009: 'Message too large',
+          1011: 'Server error',
+          1012: 'Service restart',
+          1013: 'Try again later',
+          1014: 'Bad gateway',
+          1015: 'TLS handshake failure'
+        };
+        
+        const reason = closeReasons[String(event.code) as unknown as keyof typeof closeReasons] || 'Unknown';
+        console.log(`Close code ${event.code}: ${reason}`);
+        
         if (event.code === 1006) {
           setLastError('Connection lost unexpectedly (1006) - possible server error');
         } else if (event.code === 1011) {
@@ -256,7 +277,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
           reconnectAttemptsRef.current < maxReconnectAttempts &&
           event.code !== 1000 && 
           event.code !== 1001 &&
-          event.code !== 1008;
+          event.code !== 1008; // Don't reconnect on policy violations
 
         if (shouldReconnect) {
           const delay = baseReconnectDelayMs * Math.pow(2, Math.min(reconnectAttemptsRef.current, 4));
@@ -307,63 +328,40 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
       setConnectionState('disconnected');
     }
   }, [clearReconnectTimeout]);
-  // FIXED: Check both connection state AND joined state
+
   const sendMessage = useCallback((message: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN && isJoined) {
       try {
         const messageStr = JSON.stringify(message);
         console.log('Sending message:', messageStr);
         wsRef.current.send(messageStr);
-        return true;
       } catch (error) {
         const sendError = `Failed to send WebSocket message: ${error}`;
         console.error(sendError);
         setLastError(sendError);
-        return false;
       }
     } else {
-      const warningMsg = `WebSocket not ready - connected: ${isConnected}, joined: ${isJoined}, readyState: ${wsRef.current?.readyState}`;
+      const warningMsg = `WebSocket not ready (connected: ${isConnected}, joined: ${isJoined}, readyState: ${wsRef.current?.readyState})`;
       console.warn(warningMsg, message);
       setLastError(warningMsg);
-      return false;
     }
   }, [isJoined, isConnected]);
 
   // Message sending methods
   const sendSnippetMove = useCallback((payload: { snippetId: string; x: number; y: number }) => {
-    console.log('Attempting to send snippet move:', payload);
-    const success = sendMessage({ type: 'snippet-move', payload });
-    if (!success) {
-      console.error('Failed to send snippet move message');
-    }
-    return success;
+    sendMessage({ type: 'snippet-move', payload });
   }, [sendMessage]);
 
   const sendSnippetCreate = useCallback((payload: any) => {
-    console.log('Attempting to send snippet create:', payload);
-    const success = sendMessage({ type: 'snippet-create', payload });
-    if (!success) {
-      console.error('Failed to send snippet create message');
-    }
-    return success;
+    sendMessage({ type: 'snippet-create', payload });
   }, [sendMessage]);
 
   const sendSnippetDelete = useCallback((payload: { snippetId: string }) => {
-    console.log('Attempting to send snippet delete:', payload);
-    const success = sendMessage({ type: 'snippet-delete', payload });
-    if (!success) {
-      console.error('Failed to send snippet delete message');
-    }
-    return success;
+    sendMessage({ type: 'snippet-delete', payload });
   }, [sendMessage]);
 
   const sendSnippetUpdate = useCallback((payload: any) => {
-    console.log('Attempting to send snippet update:', payload);
-    const success = sendMessage({ type: 'snippet-update', payload });
-    if (!success) {
-      console.error('Failed to send snippet update message');
-    }
-    return success;
+    sendMessage({ type: 'snippet-update', payload });
   }, [sendMessage]);
 
   const reconnect = useCallback(() => {
@@ -379,6 +377,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
     }, 100);
   }, [connect, disconnect]);
 
+  // Connect when enabled and spaceId available
   useEffect(() => {
     if (enabled && spaceId) {
       connect();
@@ -387,12 +386,14 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
     }
   }, [enabled, spaceId, connect, disconnect]);
 
+  // Rejoin when token changes (if already connected)
   useEffect(() => {
     if (token && isConnected && !isJoined) {
       joinSpace(token);
     }
   }, [token, isConnected, isJoined, joinSpace]);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false;
@@ -406,6 +407,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
     };
   }, [clearReconnectTimeout]);
 
+  // Handle page visibility change
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && 
@@ -426,6 +428,7 @@ export function useSpaceWebSocket(options: UseSpaceWebSocketOptions = {}): UseSp
     };
   }, [enabled, spaceId, isConnected, reconnect]);
 
+  // Handle online/offline events
   useEffect(() => {
     const handleOnline = () => {
       if (enabled && 

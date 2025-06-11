@@ -128,29 +128,24 @@ export default function Space({
   const canEdit = userRole === 'EDITOR' || userRole === 'ADMIN' || spaceData?.ownerId === currentUser?.id;
 
   // WebSocket message handling
- useEffect(() => {
-  if (!lastMessage) return;
+  useEffect(() => {
+    if (!lastMessage) return;
 
-  console.log('Processing message:', lastMessage);
+    switch (lastMessage.type) {
+      case 'snippet-moved':
+        if (lastMessage.payload.movedBy !== currentUser?.id) {
+          setSnippets(prev => prev.map(snippet =>
+            snippet.id === lastMessage.payload.snippetId ? {
+              ...snippet,
+              x: Math.round(lastMessage.payload.x),
+              y: Math.round(lastMessage.payload.y),
+              updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
+            } : snippet
+          ));
+        }
+        break;
 
-  switch (lastMessage.type) {
-    case 'snippet-moved':
-      console.log('Processing snippet-moved:', lastMessage.payload);
-      if (lastMessage.payload.movedBy !== currentUser?.id) {
-        setSnippets(prev => prev.map(snippet =>
-          snippet.id === lastMessage.payload.id ? {
-            ...snippet,
-            x: Math.round(lastMessage.payload.x),
-            y: Math.round(lastMessage.payload.y),
-            updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
-          } : snippet
-        ));
-      }
-      break;
-
-    case 'snippet-created':
-      console.log('Processing snippet-created:', lastMessage.payload);
-      if (lastMessage.payload.createdBy !== currentUser?.id) {
+      case 'snippet-created':
         setSnippets(prev => {
           const exists = prev.some(s => s.id === lastMessage.payload.id);
           if (!exists) {
@@ -161,26 +156,24 @@ export default function Space({
               createdAt: new Date(lastMessage.payload.createdAt || Date.now()),
               updatedAt: new Date(lastMessage.payload.updatedAt || Date.now()),
               spaceId: spaceId || "failed",
-              ownerId: lastMessage.payload.ownerId || "failed to get owner id"
+              ownerId: spaceData?.ownerId || "failed to get owner id"
             };
             
+            // Add new snippet to the end of the order
             setSnippetOrder(prev => [...prev, newSnippet.id]);
+            
             return [...prev, newSnippet];
           }
           return prev;
         });
-      }
-      break;
+        break;
 
-    case 'snippet-deleted':
-      console.log('Processing snippet-deleted:', lastMessage.payload);
-      setSnippets(prev => prev.filter(snippet => snippet.id !== lastMessage.payload.snippetId));
-      setSnippetOrder(prev => prev.filter(id => id !== lastMessage.payload.snippetId));
-      break;
+      case 'snippet-deleted':
+        setSnippets(prev => prev.filter(snippet => snippet.id !== lastMessage.payload.snippetId));
+        setSnippetOrder(prev => prev.filter(id => id !== lastMessage.payload.snippetId));
+        break;
 
-    case 'snippet-updated':
-      console.log('Processing snippet-updated:', lastMessage.payload);
-      if (lastMessage.payload.updatedBy !== currentUser?.id) {
+      case 'snippet-updated':
         setSnippets(prev => prev.map(snippet =>
           snippet.id === lastMessage.payload.id ? {
             ...snippet,
@@ -190,33 +183,32 @@ export default function Space({
             updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
           } : snippet
         ));
-      }
-      break;
+        break;
 
-    case 'user-joined':
-      console.log(`User joined: ${lastMessage.payload.userId}`);
-      break;
+      case 'user-joined':
+        console.log(`User joined: ${lastMessage.payload.userId}`);
+        break;
 
-    case 'user-left':
-      console.log(`User left: ${lastMessage.payload.userId}`);
-      break;
+      case 'user-left':
+        console.log(`User left: ${lastMessage.payload.userId}`);
+        break;
 
-    case 'space-joined':
-      console.log('Successfully joined space', lastMessage.payload);
-      break;
+      case 'space-joined':
+        console.log('Successfully joined space');
+        break;
 
-    case 'join-rejected':
-      console.error('Failed to join space:', lastMessage.payload);
-      break;
+      case 'join-rejected':
+        console.error('Failed to join space:', lastMessage.payload);
+        break;
 
-    case 'error':
-      console.error('WebSocket error:', lastMessage.payload);
-      break;
+      case 'error':
+        console.error('WebSocket error:', lastMessage.payload);
+        break;
 
-    default:
-      console.log('Unknown message type:', lastMessage.type);
-  }
-}, [lastMessage, currentUser?.id, spaceId]);
+      default:
+        console.log('Unknown message type:', lastMessage.type);
+    }
+  }, [lastMessage, currentUser?.id, spaceId, spaceData?.ownerId]);
 
   // Join space when token is available
   useEffect(() => {
