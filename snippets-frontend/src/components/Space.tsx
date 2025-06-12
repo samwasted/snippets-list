@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "./Sidebar";
 import { useSpaceWebSocket } from "./useSpaceWebSocket";
 
@@ -40,50 +40,67 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   };
 
   const response = await fetch(url, config);
-  
+
   if (!response.ok) {
     throw new Error(`API request failed: ${response.status} ${response.statusText}`);
   }
-  
+
   return response.json();
 };
 
 export default function Space() {
   const spaceId = window.location.pathname.split('/').pop() || "";
-  const [currentUser, setCurrentUser] = useState<{ 
-  id: string; 
-  name: string | null; 
-  username?: string; 
-  role?: string 
-}>({ 
-  id: "", 
-  name: null 
-});
 
-useEffect(() => {
-  const fetchUserMetadata = async () => {
-    try {
-      const response = await apiRequest('/user/metadata');
-      if (response && response.metadata) {
-        setCurrentUser({
-          id: response.metadata.id,
-          name: response.metadata.name,
-          username: response.metadata.username,
-          role: response.metadata.role
-        });
+  // Store current user in state and ref to prevent race conditions
+  const [userLoaded, setUserLoaded] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    name: string | null;
+    username?: string;
+    role?: string
+  }>({
+    id: "",
+    name: null
+  });
+
+  // Use ref to access user ID without triggering re-renders
+  const currentUserIdRef = useRef<string>("");
+
+  useEffect(() => {
+    const fetchUserMetadata = async () => {
+      try {
+        const response = await apiRequest('/user/metadata');
+        if (response && response.metadata) {
+          const userData = {
+            id: response.metadata.id,
+            name: response.metadata.name,
+            username: response.metadata.username,
+            role: response.metadata.role
+          };
+
+          setCurrentUser(userData);
+          setUserLoaded(true);
+          // CRITICAL FIX: Update ref immediately to ensure it's available for WebSocket message handling
+          currentUserIdRef.current = response.metadata.id;
+          console.log('User metadata loaded, ID:', response.metadata.id);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user metadata:", error);
       }
-    } catch (error) {
-      console.error("Failed to fetch user metadata:", error);
-    }
-  };
-  
-  fetchUserMetadata();
-}, []);
+    };
+
+    fetchUserMetadata();
+  }, []);
+
+  // Keep the ref in sync with state
+  useEffect(() => {
+    currentUserIdRef.current = currentUser.id;
+  }, [currentUser.id]);
 
   const [authToken, setAuthToken] = useState<string | undefined>(() => {
     return localStorage.getItem('token') || undefined;
   });
-  
+
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [snippetOrder, setSnippetOrder] = useState<string[]>([]);
   const [spaceData, setSpaceData] = useState<Space | null>(null);
@@ -92,23 +109,27 @@ useEffect(() => {
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
 
-  const { 
-    sendSnippetMove, 
-    sendSnippetCreate, 
-    sendSnippetDelete, 
+  // Track last deleted snippet for possible rollback if WebSocket fails
+  const deletedSnippetsRef = useRef<Map<string, Snippet>>(new Map());
+
+  // Track pending operations to prevent duplicate processing
+  const pendingOperationsRef = useRef<Set<string>>(new Set());
+
+  const {
+    sendSnippetMove,
+    sendSnippetCreate,
+    sendSnippetDelete,
     sendSnippetUpdate,
     lastMessage,
     isConnected,
     isJoined,
-    joinSpace,
-    connectionState,
     lastError,
     userPermissions
   } = useSpaceWebSocket({
     spaceId,
     userId: currentUser.id,
     token: authToken,
-    enabled: true
+    enabled: userLoaded && !!currentUser.id
   });
 
   useEffect(() => {
@@ -126,23 +147,44 @@ useEffect(() => {
     fetchSpaceData();
   }, []);
 
-  // FIXED: Enhanced WebSocket message handling with proper userId check
+  // FIXED: Enhanced WebSocket message handling with better checks
   useEffect(() => {
     if (!lastMessage) return;
 
     console.log('Processing WebSocket message:', lastMessage);
 
     // Check if message is from current user to avoid applying duplicate updates
-    const isFromCurrentUser = lastMessage.userId === currentUser.id;
-    console.log('Message from current user:', isFromCurrentUser, lastMessage.userId, currentUser.id);
+    // FIXED: Use userId from ref instead of state to avoid race conditions
+    const isFromCurrentUser = lastMessage.userId === currentUserIdRef.current;
+
+    console.log('Message source check:', {
+      isFromCurrentUser,
+      messageUserId: lastMessage.userId,
+      currentUserId: currentUserIdRef.current,
+      currentUserState: currentUser.id
+    });
 
     // For received messages from other users, apply updates
     if (!isFromCurrentUser) {
+      // Check for pending operations - if this is a response to our operation, skip it
+      const operationKey = `${lastMessage.type}_${lastMessage.payload?.snippetId || lastMessage.payload?.id}`;
+      if (pendingOperationsRef.current.has(operationKey)) {
+        console.log('Skipping message that matches a pending operation:', operationKey);
+        pendingOperationsRef.current.delete(operationKey);
+        return;
+      }
+
       switch (lastMessage.type) {
         case 'snippet-moved':
+          // Support both id and snippetId consistently
+          const moveId = lastMessage.payload.snippetId || lastMessage.payload.id;
+          if (!moveId) {
+            console.error('Invalid snippet-moved message, missing id/snippetId:', lastMessage);
+            return;
+          }
+
           setSnippets(prev => prev.map(snippet => {
-            // Support both id and snippetId in payload
-            if (snippet.id === lastMessage.payload.id || snippet.id === lastMessage.payload.snippetId) {
+            if (snippet.id === moveId) {
               const updatedSnippet = {
                 ...snippet,
                 x: Math.round(lastMessage.payload.x ?? snippet.x),
@@ -157,17 +199,23 @@ useEffect(() => {
           break;
 
         case 'snippet-created':
+          // FIXED: Standardize on snippetId field but support both
+          const snippetId = lastMessage.payload.snippetId || lastMessage.payload.id;
+          if (!snippetId) {
+            console.error('Invalid snippet-created message, missing id/snippetId:', lastMessage);
+            return;
+          }
+
+          // Check if snippet already exists to avoid duplicates
           setSnippets(prev => {
-            const snippetId = lastMessage.payload.id || lastMessage.payload.snippetId;
-            // Check if snippet already exists to avoid duplicates
             const exists = prev.some(s => s.id === snippetId);
             if (exists) {
               console.log('Snippet already exists, skipping creation');
               return prev;
             }
-            
+
             const newSnippet: Snippet = {
-              id: snippetId || `ws_${Date.now()}`,
+              id: snippetId,
               title: lastMessage.payload.title || 'Untitled Snippet',
               description: lastMessage.payload.description || '',
               code: lastMessage.payload.code || '',
@@ -176,18 +224,17 @@ useEffect(() => {
               x: Math.round(lastMessage.payload.x ?? 100),
               y: Math.round(lastMessage.payload.y ?? 100),
               spaceId: lastMessage.payload.spaceId || spaceId,
-              ownerId: lastMessage.payload.ownerId || lastMessage.payload.createdBy || lastMessage.userId || currentUser.id,
+              ownerId: lastMessage.payload.ownerId || lastMessage.payload.createdBy || lastMessage.userId || currentUserIdRef.current,
               createdAt: new Date(lastMessage.payload.createdAt || Date.now()),
               updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
             };
-            
+
             console.log('Adding new snippet from WebSocket:', newSnippet);
             return [...prev, newSnippet];
           });
-          
+
           // Update order with functional update
           setSnippetOrder(prev => {
-            const snippetId = lastMessage.payload.id || lastMessage.payload.snippetId;
             if (!snippetId || prev.includes(snippetId)) return prev;
             return [...prev, snippetId];
           });
@@ -195,16 +242,38 @@ useEffect(() => {
 
         case 'snippet-deleted':
           const deletedId = lastMessage.payload.snippetId || lastMessage.payload.id;
-          if (deletedId) {
-            console.log('Deleting snippet from WebSocket:', deletedId);
-            setSnippets(prev => prev.filter(snippet => snippet.id !== deletedId));
-            setSnippetOrder(prev => prev.filter(id => id !== deletedId));
+          if (!deletedId) {
+            console.error('Invalid snippet-deleted message, missing snippetId/id:', lastMessage);
+            return;
           }
+
+          console.log('Deleting snippet from WebSocket:', deletedId);
+
+          // FIXED: Save snippet before deleting for possible revert
+          setSnippets(prev => {
+            const snippetToDelete = prev.find(s => s.id === deletedId);
+            if (snippetToDelete) {
+              // Save to deletedSnippets for possible recovery
+              deletedSnippetsRef.current.set(deletedId, snippetToDelete);
+              setTimeout(() => {
+                // Clean up after some time
+                deletedSnippetsRef.current.delete(deletedId);
+              }, 60000); // Keep for 1 minute
+            }
+            return prev.filter(snippet => snippet.id !== deletedId);
+          });
+
+          setSnippetOrder(prev => prev.filter(id => id !== deletedId));
           break;
 
         case 'snippet-updated':
+          const targetId = lastMessage.payload.snippetId || lastMessage.payload.id;
+          if (!targetId) {
+            console.error('Invalid snippet-updated message, missing snippetId/id:', lastMessage);
+            return;
+          }
+
           setSnippets(prev => prev.map(snippet => {
-            const targetId = lastMessage.payload.id || lastMessage.payload.snippetId;
             if (snippet.id === targetId) {
               const updatedSnippet = {
                 ...snippet,
@@ -217,7 +286,7 @@ useEffect(() => {
                 ...(lastMessage.payload.y !== undefined && { y: Math.round(lastMessage.payload.y) }),
                 updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
               };
-              
+
               console.log('Snippet updated from WebSocket:', updatedSnippet);
               return updatedSnippet;
             }
@@ -239,24 +308,24 @@ useEffect(() => {
     } else {
       console.log('Ignoring message from current user to prevent duplication');
     }
-  }, [lastMessage, currentUser.id, spaceId]);
+  }, [lastMessage, spaceId]);
 
   const fetchSpaceData = async () => {
     try {
       setIsLoading(true);
       console.log('Fetching space data via HTTP...');
-      
+
       const spaceResponse = await apiRequest(`/space/${spaceId}`);
       console.log('Space data received:', spaceResponse);
-      
+
       if (spaceResponse.space) {
         const space = spaceResponse.space;
         setSpaceData(space);
-        
+
         if (space.snippets) {
           setSnippets(space.snippets);
         }
-        
+
         if (space.order && Array.isArray(space.order) && space.order.length > 0) {
           setSnippetOrder(space.order);
         } else if (space.snippets) {
@@ -266,16 +335,21 @@ useEffect(() => {
           setSnippetOrder(defaultOrder);
         }
       }
-      
+
     } catch (error) {
       console.error("HTTP: Failed to fetch space data:", error);
     } finally {
       setIsLoading(false);
     }
   };
-
-  // FIXED: Enhanced create function with optimistic updates
+  const [lastCreationTime, setLastCreationTime] = useState(0);
+  // FIXED: Enhanced create function with optimistic updates and better error handling
   const addSnippet = async () => {
+    if (Date.now() - lastCreationTime < 1000) {
+      console.log('Too rapid snippet creation');
+      return;
+    }
+    setLastCreationTime(Date.now());
     const newSnippetData = {
       title: `Test Snippet ${Date.now()}`,
       description: "Test description",
@@ -296,6 +370,10 @@ useEffect(() => {
       });
       console.log('Snippet created via HTTP:', response);
 
+      if (!response || !response.snippet || !response.snippet.id) {
+        throw new Error('Invalid response from server');
+      }
+
       // Create an optimistic local version
       const createdSnippet: Snippet = {
         id: response.snippet.id,
@@ -307,22 +385,31 @@ useEffect(() => {
         x: Math.round(response.snippet.x),
         y: Math.round(response.snippet.y),
         spaceId: spaceId,
-        ownerId: currentUser.id,
+        ownerId: currentUserIdRef.current,
         createdAt: new Date(response.snippet.createdAt),
         updatedAt: new Date(response.snippet.updatedAt)
       };
-      
+
       // Add to local state with functional update
       setSnippets(prev => {
         const exists = prev.some(s => s.id === createdSnippet.id);
         if (exists) return prev;
         return [...prev, createdSnippet];
       });
-      
+
       setSnippetOrder(prev => {
         if (prev.includes(createdSnippet.id)) return prev;
         return [...prev, createdSnippet.id];
       });
+
+      // Mark as pending operation to prevent duplicate processing
+      const operationKey = `snippet-created_${createdSnippet.id}`;
+      pendingOperationsRef.current.add(operationKey);
+
+      // Clear the pending operation after some time even if broadcast fails
+      setTimeout(() => {
+        pendingOperationsRef.current.delete(operationKey);
+      }, 10000);
 
       // Then broadcast to others via WebSocket
       if (sendSnippetCreate && isJoined) {
@@ -340,10 +427,11 @@ useEffect(() => {
       }
     } catch (error) {
       console.error("HTTP: Failed to create snippet:", error);
+      // No need to revert as we applied changes after HTTP success
     }
   };
 
-  // FIXED: Enhanced update function
+  // FIXED: Enhanced update function with better error handling
   const updateSnippet = async (id: string, updates: Partial<Snippet>) => {
     // Round coordinates if present
     const processedUpdates = {
@@ -352,6 +440,13 @@ useEffect(() => {
       ...(updates.y !== undefined && { y: Math.round(updates.y) })
     };
 
+    // Save the original state for possible revert
+    const originalSnippet = snippets.find(s => s.id === id);
+    if (!originalSnippet) {
+      console.error("Cannot update snippet that doesn't exist:", id);
+      return;
+    }
+
     // Apply optimistic update immediately
     setSnippets(prev => prev.map(s => {
       if (s.id === id) {
@@ -359,6 +454,15 @@ useEffect(() => {
       }
       return s;
     }));
+
+    // Mark as pending operation to prevent duplicate processing
+    const operationKey = `snippet-updated_${id}`;
+    pendingOperationsRef.current.add(operationKey);
+
+    // Clear the pending operation after some time even if broadcast fails
+    setTimeout(() => {
+      pendingOperationsRef.current.delete(operationKey);
+    }, 10000);
 
     try {
       // Update via HTTP
@@ -380,14 +484,28 @@ useEffect(() => {
     } catch (error) {
       console.error("HTTP: Failed to update snippet:", error);
       // Revert on error
-      fetchSpaceData();
+      if (originalSnippet) {
+        setSnippets(prev => prev.map(s => s.id === id ? originalSnippet : s));
+      } else {
+        fetchSpaceData();
+      }
+    } finally {
+      // Clear pending operation if still present
+      pendingOperationsRef.current.delete(operationKey);
     }
   };
 
-  // FIXED: Enhanced move function
+  // FIXED: Enhanced move function with better error handling
   const moveSnippet = async (id: string, x: number, y: number) => {
     const intX = Math.round(x);
     const intY = Math.round(y);
+
+    // Save the original position for possible revert
+    const originalSnippet = snippets.find(s => s.id === id);
+    if (!originalSnippet) {
+      console.error("Cannot move snippet that doesn't exist:", id);
+      return;
+    }
 
     // Apply optimistic update immediately
     setSnippets(prev => prev.map(s => {
@@ -396,6 +514,15 @@ useEffect(() => {
       }
       return s;
     }));
+
+    // Mark as pending operation to prevent duplicate processing
+    const operationKey = `snippet-moved_${id}`;
+    pendingOperationsRef.current.add(operationKey);
+
+    // Clear the pending operation after some time even if broadcast fails
+    setTimeout(() => {
+      pendingOperationsRef.current.delete(operationKey);
+    }, 10000);
 
     try {
       // Update via HTTP
@@ -418,31 +545,81 @@ useEffect(() => {
     } catch (error) {
       console.error("HTTP: Failed to update snippet position:", error);
       // Revert on error
-      fetchSpaceData();
+      if (originalSnippet) {
+        setSnippets(prev => prev.map(s => s.id === id ? originalSnippet : s));
+      } else {
+        fetchSpaceData();
+      }
+    } finally {
+      // Clear pending operation if still present
+      pendingOperationsRef.current.delete(operationKey);
     }
   };
 
-  // FIXED: Enhanced delete function
+  // FIXED: Enhanced delete function with improved error handling and revert capability
   const deleteSnippet = async (id: string) => {
+    // Save the snippet before deleting for possible revert
+    const snippetToDelete = snippets.find(s => s.id === id);
+    if (!snippetToDelete) {
+      console.error("Cannot delete snippet that doesn't exist:", id);
+      return;
+    }
+
+    // Store for possible recovery
+    deletedSnippetsRef.current.set(id, snippetToDelete);
+
     // Apply optimistic delete immediately
     setSnippets(prev => prev.filter(s => s.id !== id));
     setSnippetOrder(prev => prev.filter(snippetId => snippetId !== id));
+
+    // Mark as pending operation to prevent duplicate processing
+    const operationKey = `snippet-deleted_${id}`;
+    pendingOperationsRef.current.add(operationKey);
+
+    // Clear the pending operation after some time even if broadcast fails
+    setTimeout(() => {
+      pendingOperationsRef.current.delete(operationKey);
+    }, 10000);
 
     try {
       // Delete via HTTP
       console.log('Deleting snippet via HTTP...', id);
       await apiRequest(`/space/${spaceId}/snippet/${id}`, { method: "DELETE" });
       console.log('Snippet deleted via HTTP successfully');
-      
+
       // Broadcast via WebSocket
       if (sendSnippetDelete && isJoined) {
         console.log('Broadcasting snippet deletion via WebSocket...');
         await sendSnippetDelete({ snippetId: id });
       }
+
+      // Remove from recovery storage after successful deletion
+      setTimeout(() => {
+        deletedSnippetsRef.current.delete(id);
+      }, 60000); // Keep for 1 minute in case we need to debug
+
     } catch (error) {
       console.error("HTTP: Failed to delete snippet:", error);
-      // Revert on error
-      fetchSpaceData();
+      // Revert on error - restore the deleted snippet
+      if (snippetToDelete) {
+        setSnippets(prev => [...prev, snippetToDelete]);
+        setSnippetOrder(prev => {
+          // Try to restore at the original position if possible
+          const order = [...prev];
+          const originalIndex = snippetOrder.indexOf(id);
+          if (originalIndex >= 0 && originalIndex < order.length) {
+            order.splice(originalIndex, 0, id);
+          } else {
+            order.push(id);
+          }
+          return order;
+        });
+      } else {
+        fetchSpaceData();
+      }
+    } finally {
+      // Clear pending operation if still present
+      pendingOperationsRef.current.delete(operationKey);
     }
   };
 
@@ -472,15 +649,15 @@ useEffect(() => {
 
   const getOrderedSnippets = () => {
     if (!snippetOrder.length) return snippets;
-    
+
     const snippetMap = new Map(snippets.map(snippet => [snippet.id, snippet]));
     const orderedSnippets = snippetOrder
       .map(id => snippetMap.get(id))
       .filter((snippet): snippet is Snippet => snippet !== undefined);
-    
+
     const orderedIds = new Set(snippetOrder);
     const unorderedSnippets = snippets.filter(snippet => !orderedIds.has(snippet.id));
-    
+
     return [...orderedSnippets, ...unorderedSnippets];
   };
 
@@ -510,14 +687,14 @@ useEffect(() => {
   };
 
   const filteredSnippets = getOrderedSnippets().filter(snippet => {
-    const matchesSearch = !searchQuery.trim() || 
+    const matchesSearch = !searchQuery.trim() ||
       snippet.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       snippet.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       snippet.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesFilters = tagFilters.size === 0 || 
+
+    const matchesFilters = tagFilters.size === 0 ||
       snippet.tags.some(tag => tagFilters.has(tag));
-    
+
     return matchesSearch && matchesFilters;
   });
 
@@ -534,7 +711,7 @@ useEffect(() => {
     <div className="flex h-screen bg-gray-100">
       {sidebarOpen && (
         <div className="w-80 bg-white border-r border-gray-200">
-          <Sidebar 
+          <Sidebar
             snippets={getOrderedSnippets()}
             filteredSnippets={filteredSnippets}
             snippetOrder={snippetOrder}
@@ -561,7 +738,7 @@ useEffect(() => {
               >
                 {sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
               </button>
-              
+
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold">
                   {spaceData?.name || 'Test Space'}
@@ -624,11 +801,11 @@ useEffect(() => {
                     ×
                   </button>
                 </div>
-                
+
                 {snippet.description && (
                   <p className="text-white text-sm mb-2 opacity-90">{snippet.description}</p>
                 )}
-                
+
                 <div className="flex flex-wrap gap-1 mb-2">
                   {snippet.tags?.map(tag => (
                     <span

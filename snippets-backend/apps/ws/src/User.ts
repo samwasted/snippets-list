@@ -369,7 +369,7 @@ export class User {
             this.ws.close();
         }
     }
-
+    
     private async handleSnippetMove(payload: { snippetId: string; x: number; y: number }): Promise<void> {
         if (!this.spaceId || !this.userId) {
             this.send({
@@ -392,18 +392,9 @@ export class User {
         }
 
         try {
-            const updatedSnippet = await client.snippet.update({
-                where: {
-                    id: payload.snippetId,
-                    spaceId: this.spaceId
-                },
-                data: {
-                    x: Math.round(payload.x),
-                    y: Math.round(payload.y)
-                }
-            });
+            // Database operation removed - HTTP server will handle this automatically
 
-            // Fixed to match OutgoingMessage type
+            // Broadcast to other users using payload data
             RoomManager.getInstance().broadcast({
                 type: "snippet-moved",
                 payload: {
@@ -411,7 +402,7 @@ export class User {
                     snippetId: payload.snippetId,
                     x: Math.round(payload.x),
                     y: Math.round(payload.y),
-                    updatedAt: updatedSnippet.updatedAt.toISOString(),
+                    updatedAt: new Date().toISOString(),
                     movedBy: this.userId
                 },
                 userId: this.userId,
@@ -419,6 +410,7 @@ export class User {
                 timestamp: new Date().toISOString()
             }, this, this.spaceId);
 
+            // Send confirmation to the sender
             this.send({
                 type: "snippet-move-confirmed",
                 payload: {
@@ -429,12 +421,12 @@ export class User {
             });
 
         } catch (error) {
-            console.error("Error moving snippet:", error);
+            console.error("Error processing snippet move:", error);
             this.send({
                 type: "snippet-move-rejected",
                 payload: {
                     snippetId: payload.snippetId,
-                    message: "Failed to move snippet"
+                    message: "Failed to process snippet move"
                 }
             });
         }
@@ -468,8 +460,18 @@ export class User {
         }
 
         try {
-            const snippet = await client.snippet.create({
-                data: {
+            // Database operation removed - HTTP server will handle this automatically
+
+            // Generate a temporary ID for immediate broadcasting
+            const tempSnippetId = `temp-${this.generateMessageId("snippet")}`;
+            const currentTime = new Date().toISOString();
+
+            // Broadcast to other users using payload data
+            RoomManager.getInstance().broadcast({
+                type: "snippet-created",
+                payload: {
+                    id: tempSnippetId,
+                    snippetId: tempSnippetId,
                     title: payload.title,
                     description: payload.description || null,
                     code: payload.code || null,
@@ -478,41 +480,33 @@ export class User {
                     files: payload.files || [],
                     x: Math.round(payload.x),
                     y: Math.round(payload.y),
-                    ownerId: this.userId,
-                    spaceId: this.spaceId
-                }
-            });
-
-            // Fixed to match OutgoingMessage type
-            RoomManager.getInstance().broadcast({
-                type: "snippet-created",
-                payload: {
-                    id: snippet.id,
-                    snippetId: snippet.id,
-                    title: snippet.title,
-                    description: snippet.description,
-                    code: snippet.code,
-                    tags: snippet.tags,
-                    color: snippet.color,
-                    files: snippet.files,
-                    x: snippet.x,
-                    y: snippet.y,
-                    spaceId: snippet.spaceId || "",
-                    ownerId: snippet.ownerId,
-                    createdAt: snippet.createdAt.toISOString(),
-                    updatedAt: snippet.updatedAt.toISOString(),
+                    spaceId: this.spaceId || "",
+                    ownerId: this.userId || "",
+                    createdAt: currentTime,
+                    updatedAt: currentTime,
                     createdBy: this.userId
                 },
                 userId: this.userId,
                 messageId: this.generateMessageId("snippet-created"),
-                timestamp: new Date().toISOString()
+                timestamp: currentTime
             }, this, this.spaceId);
 
+            // Send confirmation to the sender
+            // this.send({
+            //     type: "snippet-create-confirmed",
+            //     payload: {
+            //         snippetId: tempSnippetId,
+            //         title: payload.title,
+            //         x: Math.round(payload.x),
+            //         y: Math.round(payload.y)
+            //     }
+            // });
+
         } catch (error) {
-            console.error("Error creating snippet:", error);
+            console.error("Error processing snippet creation:", error);
             this.send({
                 type: "snippet-create-rejected",
-                payload: { message: "Failed to create snippet" }
+                payload: { message: "Failed to process snippet creation" }
             });
         }
     }
@@ -539,49 +533,57 @@ export class User {
         }
 
         try {
+            // Database operation removed - HTTP server will handle this automatically
+
             const { snippetId, ...updateData } = payload;
 
             // Process numeric coordinates
             if (updateData.x !== undefined) updateData.x = Math.round(updateData.x);
             if (updateData.y !== undefined) updateData.y = Math.round(updateData.y);
 
-            const updatedSnippet = await client.snippet.update({
-                where: {
-                    id: snippetId,
-                    spaceId: this.spaceId
-                },
-                data: updateData
-            });
+            // Create broadcast payload with only the fields that are defined in updateData
+            const broadcastPayload: any = {
+                id: snippetId,
+                snippetId: snippetId,
+                updatedAt: new Date().toISOString(),
+                updatedBy: this.userId
+            };
 
-            // Fixed to match OutgoingMessage type
+            // Only include fields that are explicitly defined in updateData
+            if (updateData.title !== undefined) broadcastPayload.title = updateData.title;
+            if (updateData.description !== undefined) broadcastPayload.description = updateData.description;
+            if (updateData.code !== undefined) broadcastPayload.code = updateData.code;
+            if (updateData.tags !== undefined) broadcastPayload.tags = updateData.tags;
+            if (updateData.color !== undefined) broadcastPayload.color = updateData.color;
+            if (updateData.files !== undefined) broadcastPayload.files = updateData.files;
+            if (updateData.x !== undefined) broadcastPayload.x = updateData.x;
+            if (updateData.y !== undefined) broadcastPayload.y = updateData.y;
+
+            // Broadcast to other users using payload data
             RoomManager.getInstance().broadcast({
                 type: "snippet-updated",
-                payload: {
-                    id: snippetId,
-                    snippetId: snippetId,
-                    title: updatedSnippet.title,
-                    description: updatedSnippet.description,
-                    code: updatedSnippet.code,
-                    tags: updatedSnippet.tags,
-                    color: updatedSnippet.color,
-                    files: updatedSnippet.files,
-                    x: updatedSnippet.x,
-                    y: updatedSnippet.y,
-                    updatedAt: updatedSnippet.updatedAt.toISOString(),
-                    updatedBy: this.userId
-                },
+                payload: broadcastPayload,
                 userId: this.userId,
                 messageId: this.generateMessageId("snippet-updated"),
                 timestamp: new Date().toISOString()
             }, this, this.spaceId);
 
+            // Send confirmation to the sender
+            // this.send({
+            //     type: "snippet-update-confirmed",
+            //     payload: {
+            //         snippetId: payload.snippetId,
+            //         ...updateData
+            //     }
+            // });
+
         } catch (error) {
-            console.error("Error updating snippet:", error);
+            console.error("Error processing snippet update:", error);
             this.send({
                 type: "snippet-update-rejected",
                 payload: {
                     snippetId: payload.snippetId,
-                    message: "Failed to update snippet"
+                    message: "Failed to process snippet update"
                 }
             });
         }
@@ -609,14 +611,9 @@ export class User {
         }
 
         try {
-            await client.snippet.delete({
-                where: {
-                    id: payload.snippetId,
-                    spaceId: this.spaceId
-                }
-            });
+            // Database operation removed - HTTP server will handle this automatically
 
-            // Fixed to match OutgoingMessage type
+            // Broadcast to other users
             RoomManager.getInstance().broadcast({
                 type: "snippet-deleted",
                 payload: {
@@ -629,17 +626,26 @@ export class User {
                 timestamp: new Date().toISOString()
             }, this, this.spaceId);
 
+            // Send confirmation to the sender
+            // this.send({
+            //     type: "snippet-delete-confirmed",
+            //     payload: {
+            //         snippetId: payload.snippetId
+            //     }
+            // });
+
         } catch (error) {
-            console.error("Error deleting snippet:", error);
+            console.error("Error processing snippet deletion:", error);
             this.send({
                 type: "snippet-delete-rejected",
                 payload: {
                     snippetId: payload.snippetId,
-                    message: "Failed to delete snippet"
+                    message: "Failed to process snippet deletion"
                 }
             });
         }
     }
+
 
     public isSocketOpen(): boolean {
         return this.ws.readyState === WebSocket.OPEN;
