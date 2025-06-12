@@ -75,7 +75,7 @@ wss.on('connection', function connection(ws, req: IncomingMessage) {
             } else {
                 clearInterval(heartbeatInterval);
             }
-        }, 10000); // Ping every 5 seconds
+        }, 30000); // Ping every 20 seconds
         
         ws.on('pong', () => {
             console.log(`[${connectionId}] Received pong from client`);
@@ -90,7 +90,7 @@ wss.on('connection', function connection(ws, req: IncomingMessage) {
         // Check for stale connections (no pong received in 15 seconds)
         const staleConnectionCheck = setInterval(() => {
             const timeSinceLastPong = Date.now() - lastPongTime;
-            if (timeSinceLastPong > 15000) { // 15 seconds
+            if (timeSinceLastPong > 60000) { // 15 seconds
                 console.log(`[${connectionId}] Connection appears stale (no pong for ${timeSinceLastPong}ms), closing`);
                 clearInterval(staleConnectionCheck);
                 ws.close(1001, 'Connection timeout');

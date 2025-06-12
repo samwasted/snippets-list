@@ -487,7 +487,7 @@ spaceRouter.put("/:id/visibility", userMiddleware, async (req, res) => { //thoug
 });
 
 // Space analytics
-spaceRouter.get("/:id/analytics", userMiddleware, async (req, res) => { //validated
+spaceRouter.get("/:id/analytics", userMiddleware, async (req, res) => {
     const userId = req.userId!;
     const { id: spaceId } = IdParamSchema.parse(req.params);
     const { startDate, endDate, groupBy } = AnalyticsQuerySchema.parse(req.query);
@@ -495,20 +495,37 @@ spaceRouter.get("/:id/analytics", userMiddleware, async (req, res) => { //valida
     const access = await checkSpaceAccess(spaceId, userId, 'ADMIN');
     if (!access) {
         res.status(403).json({ message: "Insufficient permissions" });
-        return 
+        return;
+    }
+    
+    // FIXED: Properly construct date filter conditions
+    const dateFilter: any = {};
+    if (startDate && endDate) {
+        dateFilter.viewedAt = {
+            gte: new Date(startDate),
+            lte: new Date(endDate)
+        };
+    } else if (startDate) {
+        dateFilter.viewedAt = {
+            gte: new Date(startDate)
+        };
+    } else if (endDate) {
+        dateFilter.viewedAt = {
+            lte: new Date(endDate)
+        };
     }
     
     const whereClause = {
         spaceId,
-        ...(startDate && { viewedAt: { gte: new Date(startDate) } }),
-        ...(endDate && { viewedAt: { lte: new Date(endDate) } })
+        ...dateFilter
     };
     
+    // FIXED: Remove arbitrary limit and get ALL views in date range
     const views = await client.spaceView.findMany({
         where: whereClause,
         include: {
             user: {
-                select: { id: true, username: true }
+                select: { id: true, username: true, name: true }
             }
         },
         orderBy: { viewedAt: 'desc' }
@@ -522,12 +539,13 @@ spaceRouter.get("/:id/analytics", userMiddleware, async (req, res) => { //valida
         where: { spaceId }
     });
     
+    // FIXED: Return all views instead of slicing to 50
     res.json({
         analytics: {
             totalViews: views.length,
             snippetCount,
             collaboratorCount,
-            views: views.slice(0, 50) // Limit recent views
+            views: views // Return ALL views in the date range
         },
         groupBy
     });

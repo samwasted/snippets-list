@@ -7,6 +7,7 @@ import Signup from './components/Signup';
 import WelcomePage from './components/WelcomePage';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import SpaceAnalytics from './components/SpaceAnalytics';
 
 // Authentication context 
 const AuthContext = React.createContext<{
@@ -188,6 +189,7 @@ function App() {
             <Route path="/welcome" element={<WelcomePage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/space/:spaceId/analytics" element={<ProtectedRoute><SpaceAnalytics/></ProtectedRoute>} />
             {/* Protected routes */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
