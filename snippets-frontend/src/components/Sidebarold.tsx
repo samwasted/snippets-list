@@ -6,77 +6,47 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-
-interface Snippet {
-  id: string;
-  title: string;
-  description?: string;
-  code?: string;
-  tags: string[];
-  color: string;
-  x: number;
-  y: number;
-  spaceId: string;
-  ownerId: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { type Snippet } from "./types";
 
 interface SidebarProps {
-  snippets: Snippet[];
-  filteredSnippets: Snippet[];
-  snippetOrder: string[];
+  boxes: Snippet[];
+  visibleBoxes: Snippet[];
+  boxOrder: string[];
   searchQuery: string;
   tagFilters: Set<string>;
   getAllTags: () => string[];
   onSearchChange: (query: string) => void;
   onToggleTagFilter: (tag: string) => void;
   onClearAllFilters: () => void;
-  onReorderSnippets: (startIndex: number, endIndex: number) => void;
-  onUpdateSnippet: (id: string, updates: Partial<Snippet>) => void;
-  onDeleteSnippet: (id: string) => void;
+  onTagRightClick: (e: React.MouseEvent, tag: string) => void;
+  onNavigateToBox: (box: Snippet) => void;
+  onReorderBoxes: (startIndex: number, endIndex: number) => void;
+  onStartEditing: (box: Snippet) => void;
+  canEdit: boolean;
+  onClose: () => void
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
-  snippets,
-  filteredSnippets,
-  snippetOrder,
+  boxes,
+  visibleBoxes,
+  boxOrder,
   searchQuery,
   tagFilters,
   getAllTags,
   onSearchChange,
   onToggleTagFilter,
   onClearAllFilters,
-  onReorderSnippets,
-  onUpdateSnippet,
-  onDeleteSnippet,
+  onTagRightClick,
+  onNavigateToBox,
+  onReorderBoxes,
+  onStartEditing,
+  canEdit,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
   };
-
-  // Mock functions for missing props
-  const onTagRightClick = (e: React.MouseEvent, tag: string) => {
-    e.preventDefault();
-    // Placeholder for tag right-click functionality
-  };
-
-  const onNavigateToBox = (snippet: Snippet) => {
-    // Placeholder for navigation functionality
-    console.log('Navigate to:', snippet.title);
-  };
-
-  const onStartEditing = (snippet: Snippet) => {
-    // Use the existing update function as a placeholder for editing
-    onUpdateSnippet(snippet.id, {
-      title: `${snippet.title} [EDITING]`,
-      description: `Editing at ${new Date().toLocaleTimeString()}`
-    });
-  };
-
-  const canEdit = true; // Enable editing by default
 
   return (
     <>
@@ -121,7 +91,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex-1 flex flex-col items-center justify-center p-3 space-y-6">
             <div className="text-center">
               <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                {snippets.length}
+                {boxes.length}
               </div>
               <div className="text-xs text-gray-500">snippets</div>
             </div>
@@ -135,19 +105,19 @@ const Sidebar: React.FC<SidebarProps> = ({
             )}
 
             <div className="flex flex-col space-y-2 w-full">
-              {filteredSnippets.slice(0, 6).map((snippet) => (
+              {visibleBoxes.slice(0, 6).map((box) => (
                 <motion.div
-                  key={snippet.id}
-                  onClick={() => onNavigateToBox(snippet)}
-                  className={`w-full h-8 rounded-lg cursor-pointer ${snippet.color} opacity-75 hover:opacity-100 transition-all duration-200 hover:scale-105 shadow-md`}
-                  title={snippet.title}
+                  key={box.id}
+                  onClick={() => onNavigateToBox(box)}
+                  className={`w-full h-8 rounded-lg cursor-pointer ${box.color} opacity-75 hover:opacity-100 transition-all duration-200 hover:scale-105 shadow-md`}
+                  title={box.title}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 />
               ))}
-              {filteredSnippets.length > 6 && (
+              {visibleBoxes.length > 6 && (
                 <div className="text-xs text-gray-500 text-center font-medium">
-                  +{filteredSnippets.length - 6} more
+                  +{visibleBoxes.length - 6} more
                 </div>
               )}
             </div>
@@ -201,7 +171,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <p className="text-xs text-gray-500 mb-3">Right-click to change tag color</p>
                 <div className="flex flex-wrap gap-2">
                   {getAllTags().map(tag => {
-                    const snippetCount = snippets.filter(snippet => snippet.tags.includes(tag)).length;
+                    const boxCount = boxes.filter(box => box.tags.includes(tag)).length;
                     const isSelected = tagFilters.has(tag);
 
                     return (
@@ -215,7 +185,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           }`}
                       >
                         {tag}
-                        <span className="ml-1.5 opacity-70">({snippetCount})</span>
+                        <span className="ml-1.5 opacity-70">({boxCount})</span>
                       </button>
                     );
                   })}
@@ -227,8 +197,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               <div className="text-xs text-gray-500 mt-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-gray-100">
                 {tagFilters.size === 0 && !searchQuery.trim()
-                  ? `Showing all ${snippets.length} snippets`
-                  : `Showing ${filteredSnippets.length} of ${snippets.length} snippets`
+                  ? `Showing all ${boxes.length} snippets`
+                  : `Showing ${visibleBoxes.length} of ${boxes.length} snippets`
                 }
               </div>
             </div>
@@ -239,19 +209,9 @@ const Sidebar: React.FC<SidebarProps> = ({
               onWheel={(e) => e.stopPropagation()}
             >
               <div className="space-y-3">
-                {(filteredSnippets ?? [])
-                  .sort((a, b) => {
-                    const aIndex = snippetOrder.indexOf(a.id);
-                    const bIndex = snippetOrder.indexOf(b.id);
-                    // If not in order array, put at end
-                    if (aIndex === -1 && bIndex === -1) return 0;
-                    if (aIndex === -1) return 1;
-                    if (bIndex === -1) return -1;
-                    return aIndex - bIndex;
-                  })
-                  .map((snippet, index) => (
+                {(visibleBoxes ?? []).map((box, index) => (
                   <motion.div
-                    key={snippet.id}
+                    key={box.id}
                     layout
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -260,7 +220,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className="group"
                   >
                     <div
-                      onDoubleClick={() => onNavigateToBox(snippet)}
+                      onDoubleClick={() => onNavigateToBox(box)}
                       className="flex items-start gap-3 p-4 rounded-xl hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 cursor-pointer transition-all duration-200 border border-gray-100 bg-white hover:shadow-lg hover:scale-[1.02]"
                     >
                       {/* Drag Handle */}
@@ -273,15 +233,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                             const draggedDistance = info.offset.y;
                             const itemHeight = 90;
                             const newIndex = Math.round(draggedDistance / itemHeight) + index;
-                            const clampedIndex = Math.max(0, Math.min(filteredSnippets.length - 1, newIndex));
+                            const clampedIndex = Math.max(0, Math.min(visibleBoxes.length - 1, newIndex));
 
                             if (clampedIndex !== index) {
-                              const originalIndex = snippetOrder.indexOf(snippet.id);
-                              const targetSnippet = filteredSnippets[clampedIndex];
-                              const targetIndex = snippetOrder.indexOf(targetSnippet.id);
+                              const originalIndex = boxOrder.indexOf(box.id);
+                              const targetBox = visibleBoxes[clampedIndex];
+                              const targetIndex = boxOrder.indexOf(targetBox.id);
 
                               if (originalIndex !== -1 && targetIndex !== -1) {
-                                onReorderSnippets(originalIndex, targetIndex);
+                                onReorderBoxes(originalIndex, targetIndex);
                               }
                             }
                           }}
@@ -294,24 +254,26 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                       <div className="flex flex-col gap-2 flex-1 min-w-0">
                         <div className="flex items-center gap-3">
-                          <div className={`w-6 h-6 rounded-lg ${snippet.color} shadow-lg flex-shrink-0`}></div>
+                          <div className={`w-6 h-6 rounded-lg ${box.color} shadow-lg flex-shrink-0`}></div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-gray-800 truncate text-sm">{snippet.title}</div>
+                            <div className="font-semibold text-gray-800 truncate text-sm">{box.title}</div>
                             <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
-                              <span>x: {Math.round(snippet.x)}, y: {Math.round(snippet.y)}</span>
+                              <span>x: {Math.round(box.x)}, y: {Math.round(box.y)}</span>
+                              <span>•</span>
+                              <span>{box.totalViews || 0} views</span>
                             </div>
                           </div>
                         </div>
 
-                        {snippet.description && (
+                        {box.description && (
                           <div className="text-xs text-gray-600 pl-9 line-clamp-2 leading-relaxed">
-                            {snippet.description}
+                            {box.description}
                           </div>
                         )}
 
-                        {(snippet.tags?.length ?? 0) > 0 && (
+                        {(box.tags?.length ?? 0) > 0 && (
                           <div className="flex flex-wrap gap-1 pl-9">
-                            {snippet.tags.map(tag => (
+                            {box.tags.map(tag => (
                               <span
                                 key={tag}
                                 onContextMenu={(e) => onTagRightClick(e, tag)}
@@ -325,30 +287,19 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                         {/* Action buttons */}
                         <div className="flex items-center justify-between pl-9 pt-2">
-                          <div className="flex gap-2">
-                            {canEdit && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onStartEditing(snippet);
-                                }}
-                                className="text-xs text-purple-600 hover:text-purple-800 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-purple-50"
-                              >
-                                Edit
-                              </button>
-                            )}
+                          {canEdit && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onDeleteSnippet(snippet.id);
+                                onStartEditing(box);
                               }}
-                              className="text-xs text-red-600 hover:text-red-800 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-red-50"
+                              className="text-xs text-purple-600 hover:text-purple-800 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-purple-50"
                             >
-                              Delete
+                              Edit
                             </button>
-                          </div>
+                          )}
                           <div className="text-xs text-gray-400">
-                           {snippet.updatedAt ? new Date(snippet.updatedAt).toLocaleDateString() : "Unknown date"}
+                           {box.updatedAt ? new Date(box.updatedAt).toLocaleDateString() : "Unknown date"}
                           </div>
                         </div>
                       </div>
@@ -356,7 +307,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </motion.div>
                 ))}
 
-                {(filteredSnippets ?? []).length === 0 && (
+                {(visibleBoxes ?? []).length === 0 && (
                   <div className="text-center py-12">
                     <div className="text-6xl mb-4">📦</div>
                     <div className="text-gray-500 font-medium mb-2">No snippets found</div>

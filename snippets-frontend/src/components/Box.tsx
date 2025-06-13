@@ -1,12 +1,28 @@
 import React, { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import type { Box as BoxType } from "./types";
+
+interface Snippet {
+  id: string;
+  title: string;
+  description?: string;
+  code?: string;
+  tags: string[];
+  color: string;
+  x: number;
+  y: number;
+  spaceId: string;
+  ownerId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  files?: File[];
+  totalViews?: number;
+}
 
 interface BoxProps {
-  box: BoxType;
+  box: Snippet;
   scale: number;
   onUpdatePosition: (id: string, deltaX: number, deltaY: number) => void;
-  onStartEditing: (box: BoxType) => void;
+  onStartEditing: (box: Snippet) => void;
   onTagRightClick: (e: React.MouseEvent, tag: string) => void;
   onFilesChanged: (id: string, files: File[]) => void;
 }
@@ -69,28 +85,23 @@ const Box: React.FC<BoxProps> = ({
 
   const handleDownloadFile = async (file: File) => {
     try {
-      // Check if it's a proper File object
       if (!(file instanceof File)) {
         console.error('Invalid file object:', file);
         return;
       }
 
-      // Create blob URL
       const blob = new Blob([file], { type: file.type || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       
-      // Create download link
       const a = document.createElement('a');
       a.href = url;
       a.download = file.name || 'download';
       a.style.display = 'none';
       
-      // Add to DOM, click, and remove
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       
-      // Clean up the URL
       setTimeout(() => {
         URL.revokeObjectURL(url);
       }, 100);
@@ -98,7 +109,6 @@ const Box: React.FC<BoxProps> = ({
     } catch (error) {
       console.error('Error downloading file:', error);
       
-      // Fallback: try to open file in new tab
       try {
         const url = URL.createObjectURL(file);
         window.open(url, '_blank');
@@ -135,7 +145,12 @@ const Box: React.FC<BoxProps> = ({
       dragMomentum={false}
       whileDrag={{ scale: 1.05 }}
       whileHover={{ scale: 1.02 }}
-      onDrag={(_, info) => onUpdatePosition(box.id, info.delta.x/scale, info.delta.y/scale)}
+      // Enhanced onDrag handler for live WebSocket updates
+      onDrag={(_, info) => {
+        // Call the parent's update function with delta values
+        // This will trigger both optimistic UI updates and WebSocket broadcasting
+        onUpdatePosition(box.id, info.delta.x, info.delta.y);
+      }}
       onDragStart={handleDragStart}
       onMouseDown={handleMouseDown}
       onDoubleClick={() => onStartEditing(box)}
@@ -147,7 +162,12 @@ const Box: React.FC<BoxProps> = ({
       } ${
         isDragOver ? 'ring-2 ring-white ring-opacity-50 scale-105' : ''
       } hover:shadow-xl transition-shadow`}
-      style={{ left: box.x, top: box.y }}
+      style={{ 
+        left: box.x, 
+        top: box.y,
+        // Ensure the box renders at the correct scale
+        transformOrigin: '0 0'
+      }}
       initial={{ scale: 0 }}
       animate={{ scale: 1 }}
       exit={{ scale: 0 }}
@@ -162,7 +182,7 @@ const Box: React.FC<BoxProps> = ({
       />
 
       <div className="p-3 flex-1 flex flex-col relative">
-        <div className="font-semibold text-white text-center mb-2">{box.label}</div>
+        <div className="font-semibold text-white text-center mb-2">{box.title}</div>
         
         {box.description && !showFiles && (
           <div className="text-xs text-white/90 flex-1 overflow-hidden">
