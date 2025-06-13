@@ -267,8 +267,8 @@ export type Box = {
   id: string;
   x: number;
   y: number;
-  code?: string;
-  codeLanguage?: string;
+  code: string;
+  codeLanguage: string;
   color: string;
   label: string;
   description: string;
@@ -277,6 +277,7 @@ export type Box = {
   totalViews: number;
   createdAt: string;
   updatedAt: string;
+  text: string
 };
 
 export type Collaborator = {

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { userMiddleware } from "../../middleware/user";
+// import { userRouter } from "./user";
 import { 
     CreateSpaceSchema, 
     UpdateSpaceSchema,
@@ -18,34 +19,49 @@ import client from "@repo/db"
 export const spaceRouter = Router()
 
 // Helper function to check space access
+// Helper function to check space access - FIXED VERSION
+// Alternative implementation with explicit collaboration query
 const checkSpaceAccess = async (spaceId: string, userId: string, requiredRole: 'VIEWER' | 'EDITOR' | 'ADMIN' = 'VIEWER') => {
-    const space = await client.space.findUnique({
-        where: { id: spaceId },
-        include: {
-            collaborators: {
-                where: { userId }
+    // Get space and user's collaboration record separately
+    const [space, userCollaboration] = await Promise.all([
+        client.space.findUnique({
+            where: { id: spaceId },
+            include: {
+                owner: { select: { id: true, username: true, name: true } }
             }
-        }
-    });
+        }),
+        client.spaceCollaborator.findUnique({
+            where: {
+                spaceId_userId: {
+                    spaceId: spaceId,
+                    userId: userId
+                }
+            }
+        })
+    ]);
 
     if (!space) return null;
     
-    // Owner has full access
-    if (space.ownerId === userId) return { space, role: 'OWNER' as const };
+    // Determine role with explicit logic
+    type Role = 'VIEWER' | 'EDITOR' | 'ADMIN' | 'OWNER';
+    let userRole: Role;
+    if (space.ownerId === userId) {
+        userRole = 'OWNER';
+    } else if (space.isPublic && !userCollaboration && requiredRole === 'VIEWER') {
+        userRole = 'VIEWER';
+    } else if (userCollaboration) {
+        userRole = userCollaboration.role as Role;
+    } else {
+        return null; // No access
+    }
     
-    // Check if public space (viewers can access)
-    if (space.isPublic && requiredRole === 'VIEWER') return { space, role: 'VIEWER' as const };
+    // Check permissions
+    const roleHierarchy: Record<Role, number> = { 'VIEWER': 1, 'EDITOR': 2, 'ADMIN': 3, 'OWNER': 4 };
+    const hasPermission = roleHierarchy[userRole] >= roleHierarchy[requiredRole as Role];
     
-    // Check collaborator permissions
-    const collaboration = space.collaborators[0];
-    if (!collaboration) return null;
-    
-    const roleHierarchy = { 'VIEWER': 1, 'EDITOR': 2, 'ADMIN': 3 };
-    const role = collaboration.role as keyof typeof roleHierarchy;
-    const hasPermission = roleHierarchy[role] >= roleHierarchy[requiredRole];
-    
-    return hasPermission ? { space, role: collaboration.role } : null;
+    return hasPermission ? { space, role: userRole } : null;
 };
+
 
 // Space CRUD
 spaceRouter.post("/", userMiddleware, async (req, res) => { //validated
@@ -597,4 +613,71 @@ spaceRouter.put("/:id/order", userMiddleware, async (req, res) => {  //cant vali
     });
     
     res.json({ message: "Snippet order updated successfully", space });
+});
+
+spaceRouter.get("/:id/collaborators/metadata", userMiddleware, async (req, res) => {
+    const userId = req.userId!;
+    const { id: spaceId } = IdParamSchema.parse(req.params);
+    
+    const access = await checkSpaceAccess(spaceId, userId);
+    if (!access) {
+        res.status(404).json({ message: "Space not found or access denied" });
+        return;
+    }
+    
+    // Get collaborators with enhanced user metadata
+    const collaborators = await client.spaceCollaborator.findMany({
+        where: { spaceId },
+        include: {
+            user: {
+                select: { 
+                    id: true, 
+                    username: true, 
+                    name: true,
+                    role: true, // User role in the system (USER, ADMIN, etc.)
+                    createdAt: true // When user account was created
+                }
+            }
+        },
+        orderBy: { user: { username: 'asc' } }
+    });
+    
+    // Get space info including owner
+    const space = await client.space.findUnique({
+        where: { id: spaceId },
+        select: {
+            id: true,
+            name: true,
+            owner: {
+                select: {
+                    id: true,
+                    username: true,
+                    name: true
+                }
+            }
+        }
+    });
+    
+    // Format response with metadata
+    const collaboratorsMetadata = collaborators.map(collaborator => ({
+        collaborationId: collaborator.id,
+        spaceRole: collaborator.role, // Role in this specific space
+        user: {
+            ...collaborator.user,
+            accountAge: Math.floor((Date.now() - collaborator.user.createdAt.getTime()) / (1000 * 60 * 60 * 24)) // Days since account creation
+        }
+    }));
+    
+    res.json({
+        space: space,
+        collaborators: collaboratorsMetadata,
+        summary: {
+            totalCollaborators: collaborators.length,
+            roleDistribution: {
+                ADMIN: collaborators.filter(c => c.role === 'ADMIN').length,
+                EDITOR: collaborators.filter(c => c.role === 'EDITOR').length,
+                VIEWER: collaborators.filter(c => c.role === 'VIEWER').length
+            }
+        }
+    });
 });

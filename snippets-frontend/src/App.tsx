@@ -8,13 +8,14 @@ import WelcomePage from './components/WelcomePage';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import SpaceAnalytics from './components/SpaceAnalytics';
+import UnifiedAuth from './components/unifiedAuth';
 
 // Authentication context 
 const AuthContext = React.createContext<{
   isAuthenticated: boolean;
   user: any;
   login: (username: string, password: string) => Promise<boolean>;
-  signup: (username: string, password: string, confirmPassword: string) => Promise<boolean>;
+  signup: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }>({
@@ -124,26 +125,24 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   };
 
   const signup = async (username: string, password: string): Promise<boolean> => {
-    try {
-      const response = await axios.post('http://localhost:3000/api/v1/signup', {
-        username,
-        password
-      });
+  try {
+    const response = await axios.post('http://localhost:3000/api/v1/signup', {
+      username,
+      password,
+      name: username // Add name field as required by backend
+    });
 
-      if ((response.status === 200 || response.status === 201) && response.data.token) {
-        // Store JWT token in localStorage
-        localStorage.setItem('token', response.data.token);
-
-        // Re-check auth to get user data
-        await checkAuth();
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Signup failed:', error);
-      return false;
+    // Check for successful user creation (returns userId)
+    if ((response.status === 200 || response.status === 201) && response.data.userId) {
+      return true; // Signup successful, user can now login
     }
-  };
+    return false;
+  } catch (error) {
+    console.error('Signup failed:', error);
+    return false;
+  }
+};
+
 
   const logout = async () => {
     try {
@@ -189,6 +188,7 @@ function App() {
             <Route path="/welcome" element={<WelcomePage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/unified" element={<UnifiedAuth />} />
             <Route path="/space/:spaceId/analytics" element={<ProtectedRoute><SpaceAnalytics/></ProtectedRoute>} />
             {/* Protected routes */}
             <Route path="/dashboard" element={
