@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import { useSpaceWebSocket } from "./useSpaceWebSocket";
 
@@ -63,8 +63,6 @@ export default function Space() {
     name: null
   });
 
-  // Use ref to access user ID without triggering re-renders
-  // const currentUserIdRef = useRef<string>("");
 
  useEffect(() => {
   const fetchUserMetadata = async () => {
@@ -87,11 +85,6 @@ export default function Space() {
 }, []);
 
 
-  // Keep the ref in sync with state
-  // useEffect(() => {
-  //   currentUserIdRef.current = currentUser.id;
-  // }, [currentUser.id]);
-
   const [authToken, setAuthToken] = useState<string | undefined>(() => {
     return localStorage.getItem('token') || undefined;
   });
@@ -103,12 +96,6 @@ export default function Space() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
-
-  // Track last deleted snippet for possible rollback if WebSocket fails
-  // const deletedSnippetsRef = useRef<Map<string, Snippet>>(new Map());
-
-  // Track pending operations to prevent duplicate processing
-  // const pendingOperationsRef = useRef<Set<string>>(new Set());
 
   const {
     sendSnippetMove,
