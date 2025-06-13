@@ -1,9 +1,9 @@
 import React, { useState, useRef } from "react";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { colors, colorNames } from "./types";
 
-// Define types (assuming these exist in your types file)
+// Define types
 interface Box {
   id: string;
   text: string;
@@ -13,7 +13,6 @@ interface Box {
   code: string;
   codeLanguage: string;
 }
-
 
 // Major programming languages for the dropdown
 const PROGRAMMING_LANGUAGES = [
@@ -44,7 +43,7 @@ const PROGRAMMING_LANGUAGES = [
 // Function to detect language from file extension
 const detectLanguageFromExtension = (filename: string): string => {
   const extension = '.' + filename.split('.').pop()?.toLowerCase();
-  const language = PROGRAMMING_LANGUAGES.find(lang => 
+  const language = PROGRAMMING_LANGUAGES.find(lang =>
     lang.extensions.includes(extension)
   );
   return language?.value || 'text';
@@ -84,6 +83,7 @@ interface EditModalProps {
   onSave: () => void;
   onCancel: () => void;
   onDelete: (id: string) => void;
+  isDarkMode: boolean;
 }
 
 const EditModal: React.FC<EditModalProps> = ({
@@ -105,7 +105,8 @@ const EditModal: React.FC<EditModalProps> = ({
   onRemoveTag,
   onSave,
   onCancel,
-  onDelete
+  onDelete,
+  isDarkMode
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,7 +122,7 @@ const EditModal: React.FC<EditModalProps> = ({
     reader.onload = (e) => {
       const content = e.target?.result as string;
       const detectedLanguage = detectLanguageFromExtension(file.name);
-      
+
       onCodeChange(content);
       onCodeLanguageChange(detectedLanguage);
     };
@@ -133,16 +134,16 @@ const EditModal: React.FC<EditModalProps> = ({
 
     const extension = getFileExtension(editCodeLanguage);
     const filename = editText ? `${editText}${extension}` : `code${extension}`;
-    
+
     const blob = new Blob([editCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
-    
+
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    
+
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
@@ -153,52 +154,68 @@ const EditModal: React.FC<EditModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-[700px] max-h-[90vh] overflow-y-auto shadow-2xl">
-        <h3 className="text-xl font-bold mb-6 text-gray-800 flex items-center">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 cursor-default">
+      <div className={`rounded-xl p-6 w-[700px] max-h-[90vh] overflow-y-auto shadow-2xl transition-all duration-300 backdrop-blur-lg border-2 ${isDarkMode
+        ? 'bg-gray-900/30 text-white border-gray-600/40'
+        : 'bg-white/70 text-gray-900 border-gray-300/40'
+        }`}>
+        <h3 className={`text-xl font-bold mb-6 flex items-center transition-colors duration-300 ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
+          }`}>
           <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Edit Box
           </span>
         </h3>
-        
+
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className={`block text-sm font-medium mb-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
             Title
           </label>
           <input
             type="text"
             value={editText}
             onChange={(e) => onTextChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${isDarkMode
+              ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
+              : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+              }`}
             placeholder="Enter box title..."
             autoFocus
           />
         </div>
-        
+
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className={`block text-sm font-medium mb-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
             Description
           </label>
           <textarea
             value={editDescription}
             onChange={(e) => onDescriptionChange(e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical transition-all"
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical transition-all duration-300 ${isDarkMode
+              ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
+              : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+              }`}
             placeholder="Enter description..."
           />
         </div>
 
-        {/* Code Section - Updated based on user requirements */}
+        {/* Code Section - Updated with enhanced dark mode support */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-3">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className={`block text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
               Code
             </label>
             <div className="flex items-center gap-2">
               <select
                 value={editCodeLanguage}
                 onChange={(e) => onCodeLanguageChange(e.target.value)}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className={`px-3 py-1 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white'
+                  : 'border-gray-300 bg-white text-gray-900'
+                  }`}
               >
                 {PROGRAMMING_LANGUAGES.map(lang => (
                   <option key={lang.value} value={lang.value}>
@@ -210,13 +227,19 @@ const EditModal: React.FC<EditModalProps> = ({
                 <>
                   <button
                     onClick={handleDownloadCode}
-                    className="text-sm px-3 py-1 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+                    className={`text-sm px-3 py-1 rounded-md transition-all duration-200 hover:scale-105 ${isDarkMode
+                      ? 'bg-green-900/50 text-green-300 hover:bg-green-800/60'
+                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      }`}
                   >
                     Download
                   </button>
                   <button
                     onClick={clearCode}
-                    className="text-sm px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                    className={`text-sm px-3 py-1 rounded-md transition-all duration-200 hover:scale-105 ${isDarkMode
+                      ? 'bg-red-900/50 text-red-300 hover:bg-red-800/60'
+                      : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`}
                   >
                     Clear
                   </button>
@@ -224,11 +247,12 @@ const EditModal: React.FC<EditModalProps> = ({
               )}
             </div>
           </div>
-          
-          {/* Updated Code Editor with live syntax highlighting */}
+
+          {/* Enhanced Code Editor with live syntax highlighting */}
           <div className="min-h-[200px]">
             <div className="relative">
-              <div className="bg-gray-800 px-4 py-2 rounded-t-lg flex items-center justify-between">
+              <div className={`px-4 py-2 rounded-t-lg flex items-center justify-between transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-800'
+                }`}>
                 <span className="text-white text-sm font-medium flex items-center gap-2">
                   <span className="w-2 h-2 bg-green-400 rounded-full"></span>
                   {PROGRAMMING_LANGUAGES.find(l => l.value === editCodeLanguage)?.label || 'Code'}
@@ -236,7 +260,7 @@ const EditModal: React.FC<EditModalProps> = ({
                 <div className="flex gap-2">
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-xs text-gray-300 hover:text-white px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 transition-colors"
+                    className="text-xs text-gray-300 hover:text-white px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 transition-all duration-200 hover:scale-105"
                   >
                     📁 Replace
                   </button>
@@ -247,26 +271,29 @@ const EditModal: React.FC<EditModalProps> = ({
                   value={editCode}
                   onChange={(e) => onCodeChange(e.target.value)}
                   rows={12}
-                  className="w-full px-4 py-3 font-mono text-sm bg-gray-900 text-green-400 border-0 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical absolute inset-0 z-10 opacity-100"
+                  className="w-full px-4 py-3 font-mono text-sm border-0 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical absolute inset-0 z-10 opacity-100 bg-transparent text-transparent cursor-text"
                   placeholder="// Start coding here..."
-                  style={{ 
+                  style={{
                     tabSize: 2,
-                    background: 'transparent',
-                    color: 'transparent',
-                    caretColor: '#10b981'
+                    paddingLeft: '35px',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                    caretColor: '#10b981' // This ensures visible cursor
                   }}
                 />
+
                 <div className="w-full">
                   <SyntaxHighlighter
                     language={getPrismLanguage(editCodeLanguage)}
-                    style={vscDarkPlus}
+                    style={isDarkMode ? vscDarkPlus : oneLight}
                     customStyle={{
                       margin: 0,
                       borderTopLeftRadius: 0,
                       borderTopRightRadius: 0,
                       fontSize: '14px',
                       lineHeight: '1.5',
-                      minHeight: '200px'
+                      minHeight: '200px',
+                      background: isDarkMode ? '#1f2937' : '#f9fafb'
                     }}
                     showLineNumbers={true}
                   >
@@ -285,39 +312,49 @@ const EditModal: React.FC<EditModalProps> = ({
             className="hidden"
           />
         </div>
-        
+
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className={`block text-sm font-medium mb-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
             Tags
           </label>
-          
+
           <div className="flex gap-2 mb-3">
             <input
               type="text"
               value={newTag}
               onChange={(e) => onNewTagChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onAddTag()}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all"
+              className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all duration-300 ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
+                : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                }`}
               placeholder="Add a tag..."
             />
             <button
               onClick={onAddTag}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-md hover:from-blue-600 hover:to-indigo-700 text-sm transition-all transform hover:scale-105"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-md hover:from-blue-600 hover:to-indigo-700 text-sm transition-all transform hover:scale-105 duration-200"
             >
               ➕ Add
             </button>
           </div>
-          
+
           <div className="flex flex-wrap gap-2">
             {editTags.map(tag => (
               <span
                 key={tag}
-                className="inline-flex items-center bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 text-sm px-3 py-1 rounded-full border border-purple-200"
+                className={`inline-flex items-center text-sm px-3 py-1 rounded-full border transition-all duration-200 hover:scale-105 ${isDarkMode
+                  ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 text-purple-300 border-purple-700/50'
+                  : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border-purple-200'
+                  }`}
               >
                 {tag}
                 <button
                   onClick={() => onRemoveTag(tag)}
-                  className="ml-2 text-purple-600 hover:text-red-600 transition-colors"
+                  className={`ml-2 transition-colors duration-200 hover:scale-110 ${isDarkMode
+                    ? 'text-purple-400 hover:text-red-400'
+                    : 'text-purple-600 hover:text-red-600'
+                    }`}
                 >
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -327,9 +364,10 @@ const EditModal: React.FC<EditModalProps> = ({
             ))}
           </div>
         </div>
-        
+
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
+          <label className={`block text-sm font-medium mb-3 transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
             Color Theme
           </label>
           <div className="grid grid-cols-4 gap-3">
@@ -337,42 +375,51 @@ const EditModal: React.FC<EditModalProps> = ({
               <button
                 key={color}
                 onClick={() => onColorChange(color)}
-                className={`h-12 rounded-lg ${color} border-3 transition-all transform hover:scale-105 ${
-                  editColor === color 
-                    ? 'border-gray-800 shadow-lg ring-2 ring-blue-500' 
+                className={`h-12 rounded-lg ${color} border-3 transition-all transform hover:scale-105 duration-200 ${editColor === color
+                  ? isDarkMode
+                    ? 'border-gray-200 shadow-lg ring-2 ring-blue-400'
+                    : 'border-gray-800 shadow-lg ring-2 ring-blue-500'
+                  : isDarkMode
+                    ? 'border-gray-600 hover:border-gray-400'
                     : 'border-gray-300 hover:border-gray-400'
-                }`}
+                  }`}
                 title={colorNames[color as keyof typeof colorNames]}
               >
                 {editColor === color && (
-                  <span className="text-gray-800 font-bold">✓</span>
+                  <span className={`font-bold transition-colors duration-300 ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                    }`}>
+                    ✓
+                  </span>
                 )}
               </button>
             ))}
           </div>
         </div>
-        
+
         <div className="flex gap-3">
           <button
             onClick={onSave}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg font-medium"
+            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg font-medium duration-200"
           >
-            💾 Save Changes
+            Save Changes
           </button>
           <button
             onClick={onCancel}
-            className="flex-1 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-800 py-3 px-4 rounded-lg hover:from-gray-300 hover:to-gray-400 transition-all transform hover:scale-105 shadow-lg font-medium"
+            className={`flex-1 py-3 px-4 rounded-lg transition-all transform hover:scale-105 shadow-lg font-medium duration-200 ${isDarkMode
+              ? 'bg-gradient-to-r from-gray-600 to-gray-700 text-gray-100 hover:from-gray-700 hover:to-gray-800'
+              : 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-800 hover:from-gray-300 hover:to-gray-400'
+              }`}
           >
-            ❌ Cancel
+            Cancel
           </button>
           <button
             onClick={() => {
               onDelete(editingBox.id);
               onCancel();
             }}
-            className="bg-gradient-to-r from-red-600 to-pink-600 text-white py-3 px-4 rounded-lg hover:from-red-700 hover:to-pink-700 transition-all transform hover:scale-105 shadow-lg font-medium"
+            className="bg-gradient-to-r from-red-600 to-pink-600 text-white py-3 px-4 rounded-lg hover:from-red-700 hover:to-pink-700 transition-all transform hover:scale-105 shadow-lg font-medium duration-200"
           >
-            🗑️ Delete
+            Delete
           </button>
         </div>
       </div>

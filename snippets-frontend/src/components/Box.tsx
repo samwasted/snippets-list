@@ -24,6 +24,7 @@ interface BoxProps {
   onStartEditing: (box: Snippet) => void;
   onTagRightClick: (e: React.MouseEvent, tag: string) => void;
   onFilesChanged: (id: string, files: File[]) => void;
+  isDarkMode: boolean;
 }
 
 const Box: React.FC<BoxProps> = ({ 
@@ -32,11 +33,13 @@ const Box: React.FC<BoxProps> = ({
   onUpdatePosition, 
   onStartEditing,
   onTagRightClick,
-  onFilesChanged
+  onFilesChanged,
+  isDarkMode
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Manual drag state
@@ -48,7 +51,7 @@ const Box: React.FC<BoxProps> = ({
     initialBoxY: 0
   });
 
-  // Manual drag implementation using mouse events [7][11][14]
+  // Manual drag implementation using mouse events
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Prevent canvas pan and text selection
     e.preventDefault();
@@ -57,9 +60,7 @@ const Box: React.FC<BoxProps> = ({
     // Only start drag on left mouse button
     if (e.button !== 0) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    
-    // Store initial drag state [14]
+    // Store initial drag state
     dragState.current = {
       isDragging: true,
       startX: e.clientX,
@@ -70,7 +71,7 @@ const Box: React.FC<BoxProps> = ({
 
     setIsDragging(true);
 
-    // Add global mouse event listeners [11][16]
+    // Add global mouse event listeners
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     
@@ -81,11 +82,11 @@ const Box: React.FC<BoxProps> = ({
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragState.current.isDragging) return;
 
-    // Calculate mouse movement delta [7][11]
+    // Calculate mouse movement delta
     const deltaX = e.clientX - dragState.current.startX;
     const deltaY = e.clientY - dragState.current.startY;
 
-    // Apply scale factor to convert screen movement to canvas movement [10]
+    // Apply scale factor to convert screen movement to canvas movement
     const scaledDeltaX = deltaX / scale;
     const scaledDeltaY = deltaY / scale;
 
@@ -96,11 +97,11 @@ const Box: React.FC<BoxProps> = ({
   const handleMouseUp = useCallback(() => {
     if (!dragState.current.isDragging) return;
 
-    // Reset drag state [14]
+    // Reset drag state
     dragState.current.isDragging = false;
     setIsDragging(false);
 
-    // Remove global event listeners [11][16]
+    // Remove global event listeners
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
     
@@ -117,7 +118,7 @@ const Box: React.FC<BoxProps> = ({
     };
   }, [handleMouseMove, handleMouseUp]);
 
-  // File drag and drop handlers [13]
+  // File drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -210,30 +211,34 @@ const Box: React.FC<BoxProps> = ({
 
   return (
     <div
-      className={`absolute w-48 h-40 rounded-lg shadow-lg flex flex-col cursor-pointer select-none transition-all ${
+      className={`absolute w-48 h-40 rounded-lg shadow-lg flex flex-col cursor-pointer select-none transition-all duration-300 ease-out ${
         box.color
       } ${
-        isDragOver ? 'ring-2 ring-white ring-opacity-50 scale-105' : ''
+        isDragOver ? 'ring-2 ring-white ring-opacity-50' : ''
       } ${
-        isDragging ? 'scale-105 shadow-2xl z-50' : 'hover:shadow-xl'
-      } transition-shadow`}
+        isDragging ? 'z-50 shadow-2xl' : isHovered ? 'shadow-2xl' : 'hover:shadow-xl'
+      } ${
+        isDragging ? 'scale-110 rotate-3' : isHovered ? 'scale-105 -rotate-1' : 'hover:scale-105 hover:-rotate-1'
+      }`}
       
       style={{ 
         left: box.x, 
         top: box.y,
-        // Critical: Set transform origin to top-left for consistent scaling [7]
-        transformOrigin: '0 0',
-        // Improve rendering performance [10]
-        willChange: isDragging ? 'transform' : 'auto',
+        // Critical: Set transform origin to center for better scaling
+        transformOrigin: 'center center',
+        // Improve rendering performance
+        willChange: isDragging || isHovered ? 'transform' : 'auto',
         // Ensure proper z-index during drag
-        zIndex: isDragging ? 1000 : 1
+        zIndex: isDragging ? 1000 : isHovered ? 10 : 1
       }}
       
       // Manual drag event handlers
       onMouseDown={handleMouseDown}
       onDoubleClick={() => onStartEditing(box)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       
-      // File drop handlers [13]
+      // File drop handlers
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -247,27 +252,41 @@ const Box: React.FC<BoxProps> = ({
       />
 
       <div className="p-3 flex-1 flex flex-col relative">
-        <div className="font-semibold text-white text-center mb-2 truncate">
+        <div className={`font-semibold text-center mb-2 truncate transition-all duration-300 ${
+          isDarkMode ? 'text-white' : 'text-white'
+        } ${
+          isHovered ? 'text-shadow-lg scale-105' : ''
+        }`}>
           {box.title}
         </div>
         
         {box.description && !showFiles && (
-          <div className="text-xs text-white/90 flex-1 overflow-hidden">
+          <div className={`text-xs flex-1 overflow-hidden transition-all duration-300 ${
+            isDarkMode ? 'text-white/90' : 'text-white/90'
+          } ${
+            isHovered ? 'text-white scale-105' : ''
+          }`}>
             <div className="line-clamp-3">{box.description}</div>
           </div>
         )}
 
         {/* Files section */}
         {showFiles && box.files && box.files.length > 0 && (
-          <div className="text-xs text-white/90 flex-1 overflow-y-auto">
+          <div className={`text-xs flex-1 overflow-y-auto transition-all duration-300 ${
+            isDarkMode ? 'text-white/90' : 'text-white/90'
+          }`}>
             <div className="space-y-1 max-h-20">
               {box.files.map((file, index) => (
-                <div key={`${file.name}-${index}`} className="flex items-center justify-between bg-white/10 rounded px-2 py-1">
+                <div key={`${file.name}-${index}`} className={`flex items-center justify-between rounded px-2 py-1 transition-all duration-200 hover:scale-105 ${
+                  isDarkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-white/10 hover:bg-white/20'
+                }`}>
                   <div className="flex-1 truncate">
                     <div className="truncate font-medium" title={file.name}>
                       {file.name}
                     </div>
-                    <div className="text-white/70">
+                    <div className={`transition-colors duration-300 ${
+                      isDarkMode ? 'text-white/70' : 'text-white/70'
+                    }`}>
                       {formatFileSize(file.size)}
                     </div>
                   </div>
@@ -277,7 +296,11 @@ const Box: React.FC<BoxProps> = ({
                         e.stopPropagation();
                         handleDownloadFile(file);
                       }}
-                      className="text-white/70 hover:text-white text-xs px-1 py-0.5 rounded hover:bg-white/10 transition-colors"
+                      className={`text-xs px-1 py-0.5 rounded transition-all duration-200 hover:scale-110 ${
+                        isDarkMode 
+                          ? 'text-white/70 hover:text-white hover:bg-white/10' 
+                          : 'text-white/70 hover:text-white hover:bg-white/10'
+                      }`}
                       title="Download"
                     >
                       ↓
@@ -287,7 +310,11 @@ const Box: React.FC<BoxProps> = ({
                         e.stopPropagation();
                         handleRemoveFile(index);
                       }}
-                      className="text-white/70 hover:text-white text-xs px-1 py-0.5 rounded hover:bg-white/10 transition-colors"
+                      className={`text-xs px-1 py-0.5 rounded transition-all duration-200 hover:scale-110 hover:text-red-300 ${
+                        isDarkMode 
+                          ? 'text-white/70 hover:text-white hover:bg-white/10' 
+                          : 'text-white/70 hover:text-white hover:bg-white/10'
+                      }`}
                       title="Remove"
                     >
                       ×
@@ -306,7 +333,13 @@ const Box: React.FC<BoxProps> = ({
               <span
                 key={tag}
                 onContextMenu={(e) => onTagRightClick(e, tag)}
-                className="inline-block bg-white/20 text-white text-xs px-1.5 py-0.5 rounded cursor-context-menu hover:bg-white/30 transition-colors truncate max-w-16"
+                className={`inline-block text-white text-xs px-1.5 py-0.5 rounded cursor-context-menu truncate max-w-16 transition-all duration-200 hover:scale-110 ${
+                  isDarkMode 
+                    ? 'bg-white/20 hover:bg-white/30' 
+                    : 'bg-white/20 hover:bg-white/30'
+                } ${
+                  isHovered ? 'bg-white/30 scale-105' : ''
+                }`}
                 title={tag}
               >
                 {tag}
@@ -314,7 +347,13 @@ const Box: React.FC<BoxProps> = ({
             ))}
             {box.tags.length > 3 && (
               <span 
-                className="inline-block bg-white/20 text-white text-xs px-1.5 py-0.5 rounded"
+                className={`inline-block text-white text-xs px-1.5 py-0.5 rounded transition-all duration-200 ${
+                  isDarkMode 
+                    ? 'bg-white/20' 
+                    : 'bg-white/20'
+                } ${
+                  isHovered ? 'bg-white/30 scale-105' : ''
+                }`}
                 title={`Additional tags: ${box.tags.slice(3).join(', ')}`}
               >
                 +{box.tags.length - 3}
@@ -331,7 +370,13 @@ const Box: React.FC<BoxProps> = ({
                 e.stopPropagation();
                 setShowFiles(!showFiles);
               }}
-              className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/30 transition-colors"
+              className={`text-white text-xs px-1.5 py-0.5 rounded transition-all duration-200 hover:scale-110 ${
+                isDarkMode 
+                  ? 'bg-white/20 hover:bg-white/30' 
+                  : 'bg-white/20 hover:bg-white/30'
+              } ${
+                isHovered ? 'bg-white/30 scale-105' : ''
+              }`}
               title={showFiles ? "Hide files" : "Show files"}
             >
               📁 {box.files.length}
@@ -342,7 +387,13 @@ const Box: React.FC<BoxProps> = ({
               e.stopPropagation();
               fileInputRef.current?.click();
             }}
-            className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/30 transition-colors"
+            className={`text-white text-xs px-1.5 py-0.5 rounded transition-all duration-200 hover:scale-110 ${
+              isDarkMode 
+                ? 'bg-white/20 hover:bg-white/30' 
+                : 'bg-white/20 hover:bg-white/30'
+            } ${
+              isHovered ? 'bg-white/30 scale-105' : ''
+            }`}
             title="Add files"
           >
             +
@@ -351,18 +402,47 @@ const Box: React.FC<BoxProps> = ({
 
         {/* Drop zone overlay */}
         {isDragOver && (
-          <div className="absolute inset-0 bg-white/20 border-2 border-dashed border-white/50 rounded-lg flex items-center justify-center backdrop-blur-sm">
-            <div className="text-white text-sm font-medium bg-black/20 px-3 py-1 rounded">
+          <div className={`absolute inset-0 border-2 border-dashed rounded-lg flex items-center justify-center backdrop-blur-sm transition-all duration-300 ${
+            isDarkMode 
+              ? 'bg-white/20 border-white/50' 
+              : 'bg-white/20 border-white/50'
+          }`}>
+            <div className={`text-sm font-medium px-3 py-1 rounded transition-all duration-200 ${
+              isDarkMode 
+                ? 'text-white bg-black/20' 
+                : 'text-white bg-black/20'
+            }`}>
               Drop files here
             </div>
           </div>
         )}
 
-        {/* Drag indicator */}
+        {/* Enhanced drag indicator */}
         {isDragging && (
-          <div className="absolute -top-1 -left-1 w-2 h-2 bg-white rounded-full shadow-lg animate-pulse" />
+          <div className="absolute -top-2 -left-2 w-3 h-3 bg-white rounded-full shadow-lg animate-pulse ring-2 ring-blue-400" />
+        )}
+
+        {/* Hover glow effect */}
+        {isHovered && !isDragging && (
+          <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-400/20 to-purple-400/20 animate-pulse pointer-events-none" />
         )}
       </div>
+
+      {/* Enhanced hover effects with CSS custom properties */}
+      <style>{`
+        .text-shadow-lg {
+          text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        @keyframes gentle-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-2px); }
+        }
+        
+        .hover\\:animate-float:hover {
+          animation: gentle-float 2s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 };

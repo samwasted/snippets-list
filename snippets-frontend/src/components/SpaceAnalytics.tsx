@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Area, AreaChart, RadialBarChart, RadialBar, Legend } from 'recharts';
-import { Calendar, Users, Eye, FileText, TrendingUp, ArrowLeft, Filter, Download, RefreshCw, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Area, AreaChart } from 'recharts';
+import { Calendar, Users, Eye, FileText, TrendingUp, ArrowLeft, Filter, Download, RefreshCw, Moon, Sun } from 'lucide-react';
 import { apiRequest } from './api';
 
 // Updated interfaces to match actual API responses
@@ -43,6 +43,19 @@ interface SpaceInfo {
   };
 }
 
+interface CollaboratorMetadata {
+  collaborationId: string;
+  spaceRole: 'VIEWER' | 'EDITOR' | 'ADMIN' | 'OWNER';
+  user: {
+    id: string;
+    username: string;
+    name: string | null;
+    role: string;
+    createdAt: string;
+    accountAge: number;
+  };
+}
+
 interface SpaceAnalyticsProps {
   onNavigateBack?: () => void;
   onNavigateToSpace?: (spaceId: string) => void;
@@ -54,8 +67,21 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
 }) => {
   const { spaceId } = useParams<{ spaceId: string }>();
   const navigate = useNavigate();
+  
+  // Dark mode state
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      const savedMode = localStorage.getItem('isDarkMode');
+      return savedMode ? JSON.parse(savedMode) : false;
+    } catch (error) {
+      console.error('Error reading from localStorage:', error);
+      return false;
+    }
+  });
+
   const [analytics, setAnalytics] = useState<SpaceAnalytics | null>(null);
   const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null);
+  const [collaborators, setCollaborators] = useState<CollaboratorMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState({
@@ -63,16 +89,40 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
     endDate: new Date().toISOString().split('T')[0]
   });
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
-  const [chartType, setChartType] = useState<'pie' | 'radial'>('radial'); 
 
- const fetchAnalytics = async () => {
+  // Dark mode toggle function
+  const toggleDarkMode = () => {
+    try {
+      const newMode = !isDarkMode;
+      setIsDarkMode(newMode);
+      localStorage.setItem('isDarkMode', JSON.stringify(newMode));
+      
+      if (newMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (error) {
+      console.error('Error writing to localStorage:', error);
+    }
+  };
+
+  // Apply dark mode class on component mount
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  const fetchAnalytics = async () => {
     if (!spaceId) return;
     
     try {
         setLoading(true);
         setError(null);
         
-        // FIXED: Better date handling with proper timezone conversion
         const startDateTime = new Date(dateRange.startDate + 'T00:00:00.000Z').toISOString();
         const endDateTime = new Date(dateRange.endDate + 'T23:59:59.999Z').toISOString();
         
@@ -82,19 +132,13 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
             groupBy: groupBy
         });
 
-        console.log('Fetching analytics with params:', {
-            startDate: startDateTime,
-            endDate: endDateTime,
-            groupBy
-        });
-
-        // Fetch space info and analytics
-        const [spaceResponse, analyticsResponse] = await Promise.all([
+        // Fetch space info, analytics, and collaborators
+        const [spaceResponse, analyticsResponse, collaboratorsResponse] = await Promise.all([
             apiRequest(`/space/${spaceId}`),
-            apiRequest(`/space/${spaceId}/analytics?${params.toString()}`)
+            apiRequest(`/space/${spaceId}/analytics?${params.toString()}`),
+            apiRequest(`/space/${spaceId}/collaborators/metadata`)
         ]);
 
-        // FIXED: Better response validation
         if (!spaceResponse?.space) {
             throw new Error('Invalid space response structure');
         }
@@ -102,11 +146,10 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
         if (!analyticsResponse?.analytics) {
             throw new Error('Invalid analytics response structure');
         }
-
-        console.log('Analytics data received:', analyticsResponse.analytics);
         
         setSpaceInfo(spaceResponse.space);
         setAnalytics(analyticsResponse.analytics);
+        setCollaborators(collaboratorsResponse.collaborators || []);
         
     } catch (err: any) {
         console.error('Failed to fetch analytics:', err);
@@ -120,7 +163,7 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
     } finally {
         setLoading(false);
     }
-};
+  };
 
   useEffect(() => {
     if (spaceId) {
@@ -148,9 +191,13 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
   // Early return if no spaceId
   if (!spaceId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+        isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 to-slate-100'
+      }`}>
         <div className="text-center">
-          <div className="text-red-500 text-xl font-semibold mb-4">Invalid space ID</div>
+          <div className={`text-xl font-semibold mb-4 ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
+            Invalid space ID
+          </div>
           <button
             onClick={() => navigate('/dashboard')}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -165,14 +212,12 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
   const processViewsData = () => {
     if (!analytics?.views || analytics.views.length === 0) return [];
     
-    // FIXED: Better date processing with timezone handling
     const viewsByDate: Record<string, number> = {};
     
     analytics.views.forEach(view => {
         let dateKey;
         const date = new Date(view.viewedAt);
         
-        // FIXED: Handle timezone properly by using UTC dates
         switch (groupBy) {
             case 'day':
                 dateKey = date.toISOString().split('T')[0];
@@ -192,7 +237,6 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
         viewsByDate[dateKey] = (viewsByDate[dateKey] || 0) + 1;
     });
 
-    // FIXED: Fill gaps in date range for better visualization
     const sortedDates = Object.keys(viewsByDate).sort();
     if (sortedDates.length === 0) return [];
     
@@ -231,8 +275,7 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
     }
     
     return filledData;
-};
-
+  };
 
   const getTopViewers = () => {
     if (!analytics?.views) return [];
@@ -251,41 +294,78 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
       .slice(0, 10);
   };
 
-  const getEngagementData = () => {
+  // Get unique viewers count [31]
+  const getUniqueViewersCount = () => {
+    if (!analytics?.views) return 0;
+    const uniqueUsers = new Set(analytics.views.map(view => view.userId));
+    return uniqueUsers.size;
+  };
+
+  // Enhanced data functions for multiple pie charts [31]
+  const getViewsData = () => {
     if (!analytics) return [];
     
-    const total = analytics.totalViews + analytics.snippetCount + analytics.collaboratorCount;
+    const totalViews = analytics.totalViews;
+    const uniqueViews = getUniqueViewersCount();
+    const returnViews = totalViews - uniqueViews;
     
-    if (chartType === 'radial') {
-      // For radial bar chart, we need percentage values and specific structure
-      return [
-        { 
-          name: 'Views', 
-          value: analytics.totalViews, 
-          fill: '#3B82F6',
-          percentage: total > 0 ? Math.round((analytics.totalViews / total) * 100) : 0
-        },
-        { 
-          name: 'Snippets', 
-          value: analytics.snippetCount, 
-          fill: '#10B981',
-          percentage: total > 0 ? Math.round((analytics.snippetCount / total) * 100) : 0
-        },
-        { 
-          name: 'Collaborators', 
-          value: analytics.collaboratorCount, 
-          fill: '#F59E0B',
-          percentage: total > 0 ? Math.round((analytics.collaboratorCount / total) * 100) : 0
-        }
-      ];
-    }
-    
-    // For pie chart
     return [
-      { name: 'Views', value: analytics.totalViews, color: '#3B82F6' },
-      { name: 'Snippets', value: analytics.snippetCount, color: '#10B981' },
-      { name: 'Collaborators', value: analytics.collaboratorCount, color: '#F59E0B' }
+      { 
+        name: 'Unique Views', 
+        value: uniqueViews, 
+        color: '#3B82F6',
+        percentage: totalViews > 0 ? Math.round((uniqueViews / totalViews) * 100) : 0
+      },
+      { 
+        name: 'Return Views', 
+        value: returnViews, 
+        color: '#10B981',
+        percentage: totalViews > 0 ? Math.round((returnViews / totalViews) * 100) : 0
+      }
     ];
+  };
+
+  const getCollaboratorsData = () => {
+    if (!collaborators || collaborators.length === 0) return [];
+    
+    const roleDistribution = {
+      ADMIN: collaborators.filter(c => c.spaceRole === 'ADMIN').length,
+      EDITOR: collaborators.filter(c => c.spaceRole === 'EDITOR').length,
+      VIEWER: collaborators.filter(c => c.spaceRole === 'VIEWER').length
+    };
+    
+    const total = Object.values(roleDistribution).reduce((sum, count) => sum + count, 0);
+    
+    return Object.entries(roleDistribution)
+      .filter(([_, count]) => count > 0)
+      .map(([role, count]) => ({
+        name: role.charAt(0).toUpperCase() + role.slice(1).toLowerCase() + 's',
+        value: count,
+        color: role === 'ADMIN' ? '#F59E0B' : role === 'EDITOR' ? '#8B5CF6' : '#6B7280',
+        percentage: total > 0 ? Math.round((count / total) * 100) : 0
+      }));
+  };
+
+  // Custom label function for pie charts with percentages [42]
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    return (
+      <text 
+        x={x} 
+        y={y} 
+        fill={isDarkMode ? "#ffffff" : "#000000"} 
+        textAnchor={x > cx ? 'start' : 'end'} 
+        dominantBaseline="central"
+        fontSize={12}
+        fontWeight="bold"
+      >
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
   };
 
   const handleExport = async () => {
@@ -298,10 +378,12 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
         dateRange,
         analytics: {
           totalViews: analytics.totalViews,
+          uniqueViews: getUniqueViewersCount(),
           snippetCount: analytics.snippetCount,
           collaboratorCount: analytics.collaboratorCount,
           viewsOverTime: processViewsData(),
-          topViewers: getTopViewers()
+          topViewers: getTopViewers(),
+          collaboratorDistribution: getCollaboratorsData()
         }
       };
       
@@ -324,7 +406,6 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
     fetchAnalytics();
   };
 
-  // Validation helper for date inputs
   const handleDateChange = (field: 'startDate' | 'endDate', value: string) => {
     const inputDate = new Date(value);
     const today = new Date();
@@ -350,8 +431,10 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <div className="flex items-center space-x-3 text-slate-600">
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+        isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 to-slate-100'
+      }`}>
+        <div className={`flex items-center space-x-3 ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
           <RefreshCw className="h-8 w-8 animate-spin" />
           <span className="text-lg font-medium">Loading analytics...</span>
         </div>
@@ -361,9 +444,13 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+        isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 to-slate-100'
+      }`}>
         <div className="text-center">
-          <div className="text-red-500 text-xl font-semibold mb-4">{error}</div>
+          <div className={`text-xl font-semibold mb-4 ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
+            {error}
+          </div>
           <div className="space-x-4">
             <button
               onClick={handleRefresh}
@@ -373,7 +460,11 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
             </button>
             <button
               onClick={handleNavigateBack}
-              className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className={`px-6 py-2 rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'bg-gray-600 text-white hover:bg-gray-700' 
+                  : 'bg-gray-600 text-white hover:bg-gray-700'
+              }`}
             >
               Back
             </button>
@@ -385,9 +476,13 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
 
   if (!analytics || !spaceInfo) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+        isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 to-slate-100'
+      }`}>
         <div className="text-center">
-          <div className="text-slate-500 text-xl font-semibold mb-4">No analytics data available</div>
+          <div className={`text-xl font-semibold mb-4 ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+            No analytics data available
+          </div>
           <button
             onClick={handleNavigateBack}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -401,35 +496,63 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
 
   const viewsData = processViewsData();
   const topViewers = getTopViewers();
-  const engagementData = getEngagementData();
+  const viewsChartData = getViewsData();
+  const collaboratorsChartData = getCollaboratorsData();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className={`min-h-screen transition-colors duration-300 ${
+      isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 to-slate-100'
+    }`}>
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-4">
             <button
               onClick={handleNavigateToSpace}
-              className="flex items-center space-x-2 text-slate-600 hover:text-slate-800 transition-colors"
+              className={`flex items-center space-x-2 transition-colors ${
+                isDarkMode 
+                  ? 'text-gray-400 hover:text-gray-200' 
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
             >
               <ArrowLeft className="h-5 w-5" />
               <span>Back to Space</span>
             </button>
-            <div className="h-6 w-px bg-slate-300" />
+            <div className={`h-6 w-px ${isDarkMode ? 'bg-gray-600' : 'bg-slate-300'}`} />
             <div>
-              <h1 className="text-3xl font-bold text-slate-800">
+              <h1 className={`text-3xl font-bold transition-colors duration-300 ${
+                isDarkMode ? 'text-white' : 'text-slate-800'
+              }`}>
                 {spaceInfo.name} Analytics
               </h1>
-              <p className="text-slate-600 mt-1">
+              <p className={`mt-1 transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-400' : 'text-slate-600'
+              }`}>
                 Insights and performance metrics for your space
               </p>
             </div>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className={`p-2 rounded-lg transition-colors duration-300 ${
+                isDarkMode
+                  ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 shadow-sm'
+              }`}
+              title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+            
             <button
               onClick={handleRefresh}
-              className="flex items-center space-x-2 px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'text-gray-300 hover:bg-gray-800' 
+                  : 'text-slate-600 hover:bg-slate-200'
+              }`}
               disabled={loading}
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -446,39 +569,63 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
+        <div className={`rounded-xl shadow-sm border p-6 mb-8 transition-colors duration-300 ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-slate-200'
+        }`}>
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-2">
-              <Filter className="h-5 w-5 text-slate-500" />
-              <span className="font-medium text-slate-700">Filters:</span>
+              <Filter className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`} />
+              <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                Filters:
+              </span>
             </div>
             <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-slate-600">From:</label>
+              <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                From:
+              </label>
               <input
                 type="date"
                 value={dateRange.startDate}
                 max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => handleDateChange('startDate', e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                  isDarkMode 
+                    ? 'border-gray-600 bg-gray-700 text-white' 
+                    : 'border-slate-300 bg-white text-slate-900'
+                }`}
               />
             </div>
             <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-slate-600">To:</label>
+              <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                To:
+              </label>
               <input
                 type="date"
                 value={dateRange.endDate}
                 max={new Date().toISOString().split('T')[0]}
                 min={dateRange.startDate}
                 onChange={(e) => handleDateChange('endDate', e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                  isDarkMode 
+                    ? 'border-gray-600 bg-gray-700 text-white' 
+                    : 'border-slate-300 bg-white text-slate-900'
+                }`}
               />
             </div>
             <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-slate-600">Group by:</label>
+              <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                Group by:
+              </label>
               <select
                 value={groupBy}
                 onChange={(e) => setGroupBy(e.target.value as 'day' | 'week' | 'month')}
-                className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                  isDarkMode 
+                    ? 'border-gray-600 bg-gray-700 text-white' 
+                    : 'border-slate-300 bg-white text-slate-900'
+                }`}
               >
                 <option value="day">Day</option>
                 <option value="week">Week</option>
@@ -490,49 +637,66 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+          }`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-600">Total Views</p>
+                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
+                  Total Views
+                </p>
                 <p className="text-3xl font-bold text-blue-600">{analytics.totalViews}</p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                 <Eye className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          
+          <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+          }`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-600">Snippets</p>
-                <p className="text-3xl font-bold text-green-600">{analytics.snippetCount}</p>
+                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
+                  Unique Views
+                </p>
+                <p className="text-3xl font-bold text-green-600">{getUniqueViewersCount()}</p>
               </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <FileText className="h-6 w-6 text-green-600" />
+              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <Users className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          
+          <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+          }`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-600">Collaborators</p>
+                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
+                  Snippets
+                </p>
+                <p className="text-3xl font-bold text-purple-600">{analytics.snippetCount}</p>
+              </div>
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <FileText className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
+          
+          <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
+                  Collaborators
+                </p>
                 <p className="text-3xl font-bold text-yellow-600">{analytics.collaboratorCount}</p>
               </div>
-              <div className="p-3 bg-yellow-100 rounded-lg">
+              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
                 <Users className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-600">Avg. Daily Views</p>
-                <p className="text-3xl font-bold text-purple-600">
-                  {viewsData.length > 0 ? Math.round(analytics.totalViews / viewsData.length) : 0}
-                </p>
-              </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-purple-600" />
               </div>
             </div>
           </div>
@@ -541,16 +705,20 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Views Over Time */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Views Over Time</h3>
+          <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+          }`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+              Views Over Time
+            </h3>
             <div className="h-80">
                 {viewsData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={viewsData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#374151" : "#e2e8f0"} />
                             <XAxis 
                                 dataKey="date" 
-                                stroke="#64748b"
+                                stroke={isDarkMode ? "#9CA3AF" : "#64748b"}
                                 fontSize={12}
                                 tickFormatter={(value) => {
                                     const date = new Date(value);
@@ -567,7 +735,7 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
                                 }}
                                 interval="preserveStartEnd"
                             />
-                            <YAxis stroke="#64748b" fontSize={12} />
+                            <YAxis stroke={isDarkMode ? "#9CA3AF" : "#64748b"} fontSize={12} />
                             <Tooltip 
                                 labelFormatter={(value) => {
                                     const date = new Date(value);
@@ -592,9 +760,10 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
                                 }}
                                 formatter={(value: any) => [value, 'Views']}
                                 contentStyle={{
-                                    backgroundColor: '#f8fafc',
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '8px'
+                                    backgroundColor: isDarkMode ? '#1f2937' : '#f8fafc',
+                                    border: `1px solid ${isDarkMode ? '#374151' : '#e2e8f0'}`,
+                                    borderRadius: '8px',
+                                    color: isDarkMode ? '#ffffff' : '#000000'
                                 }}
                             />
                             <Area
@@ -610,7 +779,7 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
                         </AreaChart>
                     </ResponsiveContainer>
                 ) : (
-                    <div className="flex items-center justify-center h-full text-slate-500">
+                    <div className={`flex items-center justify-center h-full ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
                         <div className="text-center">
                             <div className="text-lg font-medium mb-2">No view data available</div>
                             <div className="text-sm">Try adjusting your date range or check back later</div>
@@ -620,149 +789,188 @@ const SpaceAnalytics: React.FC<SpaceAnalyticsProps> = ({
             </div>
           </div>
 
-          {/* Engagement Overview with Chart Type Toggle */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-800">Engagement Overview</h3>
-              <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                <button
-                  onClick={() => setChartType('pie')}
-                  className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                    chartType === 'pie'
-                      ? 'bg-white text-slate-800 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-800'
-                  }`}
-                >
-                  <PieChartIcon className="h-4 w-4" />
-                  <span>Pie</span>
-                </button>
-                <button
-                  onClick={() => setChartType('radial')}
-                  className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                    chartType === 'radial'
-                      ? 'bg-white text-slate-800 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-800'
-                  }`}
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  <span>Radial</span>
-                </button>
-              </div>
-            </div>
+          {/* Views Distribution Pie Chart */}
+          <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+          }`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+              Views Distribution
+            </h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                {chartType === 'pie' ? (
+                <PieChart>
+                  <Pie
+                    data={viewsChartData}
+                    cx="50%"
+                    cy="40%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={renderCustomLabel}
+                    labelLine={false}
+                  >
+                    {viewsChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: any, name: any) => [value, name]}
+                    contentStyle={{
+                      backgroundColor: isDarkMode ? '#1f2937' : '#f8fafc',
+                      border: `1px solid ${isDarkMode ? '#374151' : '#e2e8f0'}`,
+                      borderRadius: '8px',
+                      color: isDarkMode ? '#ffffff' : '#000000'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Values below chart [44] */}
+            <div className="mt-4 flex justify-center space-x-8">
+              {viewsChartData.map((entry, index) => (
+                <div key={index} className="text-center">
+                  <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                    {entry.name}
+                  </div>
+                  <div className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`} style={{ color: entry.color }}>
+                    {entry.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Second Row of Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Collaborators Distribution Pie Chart */}
+          <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+          }`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+              Collaborators by Role
+            </h3>
+            <div className="h-80">
+              {collaboratorsChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={engagementData}
+                      data={collaboratorsChartData}
                       cx="50%"
-                      cy="50%"
-                      outerRadius={100}
+                      cy="40%"
+                      outerRadius={80}
                       dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}`}
+                      label={renderCustomLabel}
+                      labelLine={false}
                     >
-                      {engagementData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={
-                          'color' in entry ? entry.color : entry.fill
-                        } />
+                      {collaboratorsChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip />
-                  </PieChart>
-                ) : (
-                  <RadialBarChart
-                    cx="50%"
-                    cy="50%"
-                    innerRadius="20%"
-                    outerRadius="90%"
-                    data={engagementData}
-                  >
-                    <RadialBar
-                      dataKey="value"
-                      cornerRadius={8}
-                      label={{
-                        position: 'insideStart',
-                        fill: '#fff',
-                        fontSize: 12,
-                        fontWeight: 'bold'
-                      }}
-                    />
-                    <Legend
-                      iconType="square"
-                      layout="vertical"
-                      verticalAlign="middle"
-                      align="right"
-                      wrapperStyle={{
-                        paddingLeft: '20px',
-                        fontSize: '14px'
-                      }}
-                      formatter={(value, entry: any) => `${value}: ${entry.payload.value}`}
-                    />
-                    <Tooltip
+                    <Tooltip 
                       formatter={(value: any, name: any) => [value, name]}
                       contentStyle={{
-                        backgroundColor: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px'
+                        backgroundColor: isDarkMode ? '#1f2937' : '#f8fafc',
+                        border: `1px solid ${isDarkMode ? '#374151' : '#e2e8f0'}`,
+                        borderRadius: '8px',
+                        color: isDarkMode ? '#ffffff' : '#000000'
                       }}
                     />
-                  </RadialBarChart>
-                )}
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className={`flex items-center justify-center h-full ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+                  <div className="text-center">
+                    <div className="text-lg font-medium mb-2">No collaborators yet</div>
+                    <div className="text-sm">Add collaborators to see role distribution</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Values below chart */}
+            {collaboratorsChartData.length > 0 && (
+              <div className="mt-4 flex justify-center space-x-6">
+                {collaboratorsChartData.map((entry, index) => (
+                  <div key={index} className="text-center">
+                    <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                      {entry.name}
+                    </div>
+                    <div className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`} style={{ color: entry.color }}>
+                      {entry.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Top Viewers */}
+          <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+          }`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+              Top Viewers
+            </h3>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topViewers} layout="horizontal">
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#374151" : "#e2e8f0"} />
+                  <XAxis type="number" stroke={isDarkMode ? "#9CA3AF" : "#64748b"} fontSize={12} />
+                  <YAxis 
+                    type="category" 
+                    dataKey="username" 
+                    stroke={isDarkMode ? "#9CA3AF" : "#64748b"} 
+                    fontSize={12}
+                    width={100}
+                  />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: isDarkMode ? '#1f2937' : '#f8fafc',
+                      border: `1px solid ${isDarkMode ? '#374151' : '#e2e8f0'}`,
+                      borderRadius: '8px',
+                      color: isDarkMode ? '#ffffff' : '#000000'
+                    }}
+                  />
+                  <Bar dataKey="count" fill="#10B981" radius={[0, 4, 4, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        {/* Top Viewers */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Top Viewers</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topViewers} layout="horizontal">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" stroke="#64748b" fontSize={12} />
-                <YAxis 
-                  type="category" 
-                  dataKey="username" 
-                  stroke="#64748b" 
-                  fontSize={12}
-                  width={100}
-                />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Bar dataKey="count" fill="#10B981" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Recent Activity</h3>
+        <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${
+          isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'
+        }`}>
+          <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+            Recent Activity
+          </h3>
           <div className="space-y-3">
             {analytics.views.slice(0, 10).map((view, _) => (
-              <div key={view.id} className="flex items-center justify-between py-3 border-b border-slate-100 last:border-b-0">
+              <div key={view.id} className={`flex items-center justify-between py-3 border-b last:border-b-0 ${
+                isDarkMode ? 'border-gray-700' : 'border-slate-100'
+              }`}>
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
                     <Eye className="h-4 w-4 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-medium text-slate-800">{view.user.username}</p>
-                    <p className="text-sm text-slate-600">viewed the space</p>
+                    <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                      {view.user.username}
+                    </p>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
+                      viewed the space
+                    </p>
                   </div>
                 </div>
-                <div className="text-sm text-slate-500">
+                <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
                   {new Date(view.viewedAt).toLocaleString()}
                 </div>
               </div>
             ))}
             {analytics.views.length === 0 && (
-              <p className="text-slate-500 text-center py-8">No recent activity to display</p>
+              <p className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+                No recent activity to display
+              </p>
             )}
           </div>
         </div>

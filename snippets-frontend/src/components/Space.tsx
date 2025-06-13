@@ -1,10 +1,12 @@
 import React from "react";
 import { useState, useEffect, useRef } from "react";
+import { useParams } from 'react-router-dom';
 import Sidebar from "./Sidebar";
 import Box from "./Box";
 import EditModal from "./EditModal";
 import { motion, animate} from "framer-motion";
 import { useSpaceWebSocket } from "./useSpaceWebSocket";
+import useDarkMode from "./useDarkMode";
 import type { TagColorMenuState, Box as BoxType, colors, colorNames } from "./types";
 
 // Common type definitions harmonized from both components
@@ -74,6 +76,24 @@ export default function Space() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  // Fixed: Use React Router's useParams instead of manual URL parsing
+  const { spaceId } = useParams<{ spaceId: string }>();
+  
+  // Add safety check for spaceId
+  if (!spaceId) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Invalid Space ID</h1>
+          <p className="text-gray-600">The space ID is missing or invalid.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Dark mode state
+  const [isDarkMode, toggleDarkMode] = useDarkMode();
+
   // Zoom & pan state
   const [scale, setScale] = useState(1);
   const [panX, setPanX] = useState(0);
@@ -83,6 +103,9 @@ export default function Space() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  
+  // Add refresh key for forcing re-renders after orientation changes
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Edit modal state
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
@@ -93,8 +116,6 @@ export default function Space() {
   const [editCode, setEditCode] = useState("");
   const [editCodeLanguage, setEditCodeLanguage] = useState("javascript");
   const [newTag, setNewTag] = useState("");
-
-  const spaceId = window.location.pathname.split('/').pop() || "";
 
   // User state
   const [userLoaded, setUserLoaded] = useState(false);
@@ -126,6 +147,9 @@ export default function Space() {
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   const [userRole, setUserRole] = useState<'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER' | null>(null);
+
+  // Sidebar state - Only controlled by toggle button
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const {
     sendSnippetMove,
@@ -183,7 +207,89 @@ export default function Space() {
     fetchSpaceData();
   }, []);
 
-  // Canvas pan handlers
+  // ENHANCED: Orientation change handling with touch state reset
+  useEffect(() => {
+    const handleResize = () => {
+      // Reset touch state on orientation change to prevent stuck gestures
+      setIsDragging(false);
+      setDragStart({ x: 0, y: 0 });
+      setPanStart({ x: panX, y: panY });
+      
+      // Force re-render to update coordinate calculations
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        console.log('Viewport updated:', rect.width, 'x', rect.height);
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+
+    const handleOrientationChange = () => {
+      // Reset all touch-related state when orientation changes
+      console.log('Orientation change detected, resetting touch state');
+      setIsDragging(false);
+      setDragStart({ x: 0, y: 0 });
+      setPanStart({ x: panX, y: panY });
+      
+      // Small delay to ensure orientation change is complete
+      setTimeout(() => {
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          console.log('Post-orientation viewport:', rect.width, 'x', rect.height);
+        }
+      }, 100);
+    };
+
+    // Listen for both resize and orientation change events
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientationChange);
+    
+    // Also listen for visual viewport changes (mobile browsers)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    }
+
+    // Listen for screen orientation API changes if available
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', handleOrientationChange);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
+      if (screen.orientation) {
+        screen.orientation.removeEventListener('change', handleOrientationChange);
+      }
+    };
+  }, [panX, panY]);
+
+  // Coordinate validation helper for touch events after orientation changes
+  const validateTouchCoordinates = (touch: Touch) => {
+    if (!containerRef.current) return null;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    
+    // Validate coordinates are within container bounds
+    if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+      return { x: touch.clientX, y: touch.clientY };
+    }
+    
+    return null;
+  };
+
+  // Unified coordinate extraction for mouse and touch events
+  const getEventCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+    if ('touches' in e && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY };
+  };
+
+  // Canvas pan handlers - Mouse events
   const handleMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
@@ -209,7 +315,61 @@ export default function Space() {
     setIsDragging(false);
   };
 
-  // Global mouse handlers for canvas panning
+  // ENHANCED: Canvas pan handlers - Touch events for mobile with orientation support
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return; // Only handle single touch
+    
+    const touch = e.touches[0];
+    const target = e.target as HTMLElement;
+    const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
+
+    if (!isOnCanvas) return;
+
+    // Validate coordinates after potential orientation change
+    const validatedCoords = validateTouchCoordinates(touch as unknown as Touch);
+    if (!validatedCoords) {
+      console.log('Invalid touch coordinates detected, skipping');
+      return;
+    }
+
+    e.preventDefault(); // Prevent default touch behaviors like scrolling
+    
+    // Always reset state first to handle interrupted gestures
+    setIsDragging(false);
+    
+    // Small delay to ensure state is reset and orientation is stable
+    setTimeout(() => {
+      setIsDragging(true);
+      setDragStart({ x: touch.clientX, y: touch.clientY });
+      setPanStart({ x: panX, y: panY });
+    }, 10);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || e.touches.length !== 1) return;
+
+    const touch = e.touches[0];
+    
+    // Validate coordinates to ensure they're still valid after any orientation changes
+    const validatedCoords = validateTouchCoordinates(touch as Touch);
+    if (!validatedCoords) {
+      console.log('Invalid touch coordinates during move, resetting drag');
+      setIsDragging(false);
+      return;
+    }
+
+    const deltaX = touch.clientX - dragStart.x;
+    const deltaY = touch.clientY - dragStart.y;
+
+    setPanX(panStart.x + deltaX);
+    setPanY(panStart.y + deltaY);
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  // ENHANCED: Global mouse and touch handlers with orientation change support
   React.useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
@@ -225,17 +385,53 @@ export default function Space() {
       setIsDragging(false);
     };
 
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      
+      // Validate container still exists after potential orientation change
+      if (!containerRef.current) {
+        setIsDragging(false);
+        return;
+      }
+
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - dragStart.x;
+      const deltaY = touch.clientY - dragStart.y;
+
+      setPanX(panStart.x + deltaX);
+      setPanY(panStart.y + deltaY);
+    };
+
+    const handleGlobalTouchEnd = () => {
+      setIsDragging(false);
+    };
+
+    // Handle orientation change during active touch gesture
+    const handleOrientationChangeDuringTouch = () => {
+      console.log('Orientation change during touch, resetting drag state');
+      setIsDragging(false);
+    };
+
     if (isDragging) {
       document.addEventListener('mousemove', handleGlobalMouseMove);
       document.addEventListener('mouseup', handleGlobalMouseUp);
+      document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+      document.addEventListener('touchend', handleGlobalTouchEnd);
+      document.addEventListener('touchcancel', handleGlobalTouchEnd);
+      window.addEventListener('orientationchange', handleOrientationChangeDuringTouch);
     }
 
     return () => {
       document.removeEventListener('mousemove', handleGlobalMouseMove);
       document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('touchmove', handleGlobalTouchMove);
+      document.removeEventListener('touchend', handleGlobalTouchEnd);
+      document.removeEventListener('touchcancel', handleGlobalTouchEnd);
+      window.removeEventListener('orientationchange', handleOrientationChangeDuringTouch);
     };
-  }, [isDragging, dragStart, panStart]);
-   const moveSnippet = async (id: string, deltaX: number, deltaY: number) => {
+  }, [isDragging, dragStart, panStart, panX, panY]);
+
+  const moveSnippet = async (id: string, deltaX: number, deltaY: number) => {
     const snippet = snippets.find(s => s.id === id);
     if (!snippet) return;
 
@@ -274,129 +470,124 @@ export default function Space() {
       }
     }
   };
+
   // WebSocket message handling
   useEffect(() => {
-  if (!lastMessage) return;
+    if (!lastMessage) return;
 
-  console.log('Processing WebSocket message:', lastMessage);
+    console.log('Processing WebSocket message:', lastMessage);
+    const isFromCurrentUser = lastMessage.userId === currentUser?.id;
 
-  const isFromCurrentUser = lastMessage.userId === currentUser?.id;
+    switch (lastMessage.type) {
+      case 'snippet-moved':
+        const moveId = lastMessage.payload.snippetId || lastMessage.payload.id;
+        if (!moveId) return;
 
-  switch (lastMessage.type) {
-    case 'snippet-moved':
-      const moveId = lastMessage.payload.snippetId || lastMessage.payload.id;
-      if (!moveId) return;
-
-      // Always process move updates to ensure all users see position changes
-      setSnippets(prev => prev.map(snippet => {
-        if (snippet.id === moveId) {
-          return {
-            ...snippet,
-            x: Math.round(lastMessage.payload.x ?? snippet.x),
-            y: Math.round(lastMessage.payload.y ?? snippet.y),
-            updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
-          };
-        }
-        return snippet;
-      }));
-      break;
-
-    case 'snippet-created':
-      const snippetId = lastMessage.payload.snippetId || lastMessage.payload.id;
-      if (!snippetId) return;
-
-      setSnippets(prev => {
-        const exists = prev.some(s => s.id === snippetId);
-        
-        // Skip only if from current user AND already exists (prevents duplicates)
-        if (exists && isFromCurrentUser) {
-          console.log('Skipping duplicate creation from current user');
-          return prev;
-        }
-        
-        // Process all other cases (new snippets from others, or missing snippets)
-        if (!exists) {
-          const newSnippet = {
-            id: snippetId,
-            title: lastMessage.payload.title || 'Untitled Snippet',
-            description: lastMessage.payload.description || '',
-            code: lastMessage.payload.code || '',
-            tags: Array.isArray(lastMessage.payload.tags) ? lastMessage.payload.tags : [],
-            color: lastMessage.payload.color || 'bg-gray-400',
-            x: Math.round(lastMessage.payload.x ?? 100),
-            y: Math.round(lastMessage.payload.y ?? 100),
-            spaceId: lastMessage.payload.spaceId || spaceId,
-            ownerId: lastMessage.payload.ownerId || lastMessage.payload.createdBy || lastMessage.userId || currentUser?.id || '',
-            createdAt: new Date(lastMessage.payload.createdAt || Date.now()),
-            updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
-          };
-           if (!isFromCurrentUser) {
-            console.log('Sending HTTP edit request for newly created snippet...');
-            try{
-              fetchSpaceData()
-            } catch(e){
-              console.log("chud gye guru")
-            }
-          }
-
-          return [...prev, newSnippet];
-        }
-        
-        return prev;
-      });
-
-      setSnippetOrder(prev => {
-        if (!snippetId || prev.includes(snippetId)) return prev;
-        return [...prev, snippetId];
-      });
-      break;
-
-    case 'snippet-updated':
-      const targetId = lastMessage.payload.snippetId || lastMessage.payload.id;
-      if (!targetId) return;
-
-      // CRITICAL FIX: Always process updates from other users
-      // Only skip if it's a duplicate immediate echo from current user
-      const shouldSkipUpdate = isFromCurrentUser && 
-        typeof lastMessage.timestamp === 'number' &&
-        (Date.now() - lastMessage.timestamp < 1000); // 1 second grace period
-
-      if (!shouldSkipUpdate) {
         setSnippets(prev => prev.map(snippet => {
-          if (snippet.id === targetId) {
+          if (snippet.id === moveId) {
             return {
               ...snippet,
-              ...(lastMessage.payload.title !== undefined && { title: lastMessage.payload.title }),
-              ...(lastMessage.payload.description !== undefined && { description: lastMessage.payload.description }),
-              ...(lastMessage.payload.code !== undefined && { code: lastMessage.payload.code }),
-              ...(Array.isArray(lastMessage.payload.tags) && { tags: lastMessage.payload.tags }),
-              ...(lastMessage.payload.color !== undefined && { color: lastMessage.payload.color }),
-              ...(lastMessage.payload.x !== undefined && { x: Math.round(lastMessage.payload.x) }),
-              ...(lastMessage.payload.y !== undefined && { y: Math.round(lastMessage.payload.y) }),
+              x: Math.round(lastMessage.payload.x ?? snippet.x),
+              y: Math.round(lastMessage.payload.y ?? snippet.y),
               updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
             };
           }
           return snippet;
         }));
-      }
-      break;
+        break;
 
-    case 'snippet-deleted':
-      const deletedId = lastMessage.payload.snippetId || lastMessage.payload.id;
-      if (!deletedId) return;
+      case 'snippet-created':
+        const snippetId = lastMessage.payload.snippetId || lastMessage.payload.id;
+        if (!snippetId) return;
 
-      // Always process deletions to ensure consistency
-      setSnippets(prev => prev.filter(snippet => snippet.id !== deletedId));
-      setSnippetOrder(prev => prev.filter(id => id !== deletedId));
-      break;
+        setSnippets(prev => {
+          const exists = prev.some(s => s.id === snippetId);
+          
+          if (exists && isFromCurrentUser) {
+            console.log('Skipping duplicate creation from current user');
+            return prev;
+          }
+          
+          if (!exists) {
+            const newSnippet = {
+              id: snippetId,
+              title: lastMessage.payload.title || 'Untitled Snippet',
+              description: lastMessage.payload.description || '',
+              code: lastMessage.payload.code || '',
+              tags: Array.isArray(lastMessage.payload.tags) ? lastMessage.payload.tags : [],
+              color: lastMessage.payload.color || 'bg-gray-400',
+              x: Math.round(lastMessage.payload.x ?? 100),
+              y: Math.round(lastMessage.payload.y ?? 100),
+              spaceId: lastMessage.payload.spaceId || spaceId,
+              ownerId: lastMessage.payload.ownerId || lastMessage.payload.createdBy || lastMessage.userId || currentUser?.id || '',
+              createdAt: new Date(lastMessage.payload.createdAt || Date.now()),
+              updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
+            };
 
-    case 'space-view':
-      if (lastMessage.payload.order && Array.isArray(lastMessage.payload.order)) {
-        setSnippetOrder(lastMessage.payload.order);
-      }
-      break;
-  }
-}, [lastMessage, spaceId, currentUser?.id]);
+            if (!isFromCurrentUser) {
+              console.log('Sending HTTP edit request for newly created snippet...');
+              try{
+                fetchSpaceData()
+              } catch(e){
+                console.log("chud gye guru")
+              }
+            }
+
+            return [...prev, newSnippet];
+          }
+          
+          return prev;
+        });
+
+        setSnippetOrder(prev => {
+          if (!snippetId || prev.includes(snippetId)) return prev;
+          return [...prev, snippetId];
+        });
+        break;
+
+      case 'snippet-updated':
+        const targetId = lastMessage.payload.snippetId || lastMessage.payload.id;
+        if (!targetId) return;
+
+        const shouldSkipUpdate = isFromCurrentUser && 
+          typeof lastMessage.timestamp === 'number' &&
+          (Date.now() - lastMessage.timestamp < 1000);
+
+        if (!shouldSkipUpdate) {
+          setSnippets(prev => prev.map(snippet => {
+            if (snippet.id === targetId) {
+              return {
+                ...snippet,
+                ...(lastMessage.payload.title !== undefined && { title: lastMessage.payload.title }),
+                ...(lastMessage.payload.description !== undefined && { description: lastMessage.payload.description }),
+                ...(lastMessage.payload.code !== undefined && { code: lastMessage.payload.code }),
+                ...(Array.isArray(lastMessage.payload.tags) && { tags: lastMessage.payload.tags }),
+                ...(lastMessage.payload.color !== undefined && { color: lastMessage.payload.color }),
+                ...(lastMessage.payload.x !== undefined && { x: Math.round(lastMessage.payload.x) }),
+                ...(lastMessage.payload.y !== undefined && { y: Math.round(lastMessage.payload.y) }),
+                updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
+              };
+            }
+            return snippet;
+          }));
+        }
+        break;
+
+      case 'snippet-deleted':
+        const deletedId = lastMessage.payload.snippetId || lastMessage.payload.id;
+        if (!deletedId) return;
+
+        setSnippets(prev => prev.filter(snippet => snippet.id !== deletedId));
+        setSnippetOrder(prev => prev.filter(id => id !== deletedId));
+        break;
+
+      case 'space-view':
+        if (lastMessage.payload.order && Array.isArray(lastMessage.payload.order)) {
+          setSnippetOrder(lastMessage.payload.order);
+        }
+        break;
+    }
+  }, [lastMessage, spaceId, currentUser?.id]);
 
   const navigateToBox = (snippet: Snippet) => {
     if (!containerRef.current || !canvasRef.current) return;
@@ -424,6 +615,9 @@ export default function Space() {
       bounce: 0.2,
       onUpdate: (value) => setPanY(value),
     });
+
+    // Close sidebar after navigation if needed
+    // Removed automatic closing - only closes via toggle button
   };
 
   // Fetch space data
@@ -474,13 +668,12 @@ export default function Space() {
         })
       });
       
-      // Update local state to reflect the change
       setSpaceData(prevData => prevData ? { ...prevData, isPublic } : prevData);
       
       console.log(`Space visibility updated to ${isPublic ? 'public' : 'private'}`);
     } catch (error) {
       console.error('Error updating space visibility:', error);
-      throw error; // Re-throw to allow Sidebar component to handle the error
+      throw error;
     }
   };
 
@@ -706,9 +899,6 @@ export default function Space() {
     }
   };
 
-  // Move snippet with proper coordinate calculation
- 
-
   // Delete snippet
   const deleteSnippet = async (id: string) => {
     const snippetToDelete = snippets.find(s => s.id === id);
@@ -820,7 +1010,6 @@ export default function Space() {
     ));
     setTagColorMenu({ show: false, tag: "", x: 0, y: 0 });
 
-    // Update all snippets with this tag to have this color via WebSocket
     snippets.forEach(snippet => {
       if (snippet.tags.includes(tag)) {
         if (sendSnippetUpdate && isJoined) {
@@ -862,7 +1051,6 @@ export default function Space() {
     return aIndex - bIndex;
   });
 
-  // FIXED: Added missing getOrderedSnippets function
   const getOrderedSnippets = () => {
     return snippets.sort((a, b) => {
       const aIndex = snippetOrder.indexOf(a.id);
@@ -880,10 +1068,10 @@ export default function Space() {
                  spaceData?.ownerId === currentUser.id;
 
   const connectionStatus = (() => {
-    if (isJoined) return { status: 'Connected & Joined', color: 'bg-green-100 text-green-800' };
-    if (isConnected) return { status: 'Connected (Joining...)', color: 'bg-yellow-100 text-yellow-800' };
-    if (lastError) return { status: `Error: ${lastError.slice(0, 30)}...`, color: 'bg-red-100 text-red-800' };
-    return { status: 'Disconnected', color: 'bg-red-100 text-red-800' };
+    if (isJoined) return { status: 'Connected & Joined', color: isDarkMode ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800' };
+    if (isConnected) return { status: 'Connected (Joining...)', color: isDarkMode ? 'bg-yellow-900/50 text-yellow-200' : 'bg-yellow-100 text-yellow-800' };
+    if (lastError) return { status: `Error: ${lastError.slice(0, 30)}...`, color: isDarkMode ? 'bg-red-900/50 text-red-200' : 'bg-red-100 text-red-800' };
+    return { status: 'Disconnected', color: isDarkMode ? 'bg-red-900/50 text-red-200' : 'bg-red-100 text-red-800' };
   })();
 
   // Convert Snippet to BoxType for Box component
@@ -905,37 +1093,100 @@ export default function Space() {
   });
 
   return (
-    <div className="h-screen bg-gray-100">
-      {/* Main Content - Full Width */}
+    <div className={`h-screen transition-colors duration-300 ${
+      isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
+    }`} key={refreshKey}>
+      {/* Main Content */}
       <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold">
+        {/* Header with Sidebar Toggle */}
+        <div className={`border-b p-3 sm:p-4 transition-colors duration-300 ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Sidebar Toggle Button */}
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className={`p-2 rounded-md transition-colors duration-300 ${
+                  isDarkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+                title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                    d={isSidebarOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+                </svg>
+              </button>
+
+              <h1 className={`text-lg font-semibold truncate transition-colors duration-300 hidden sm:block ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
                 {spaceData?.name || 'Code Space'}
               </h1>
-              {isLoading && <span className="text-sm text-gray-500">Loading...</span>}
+              {isLoading && (
+                <span className={`text-sm transition-colors duration-300 hidden sm:inline ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  Loading...
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Zoom controls */}
-              <div className="flex items-center gap-1 bg-gray-100 rounded-md p-1">
+            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className={`p-2 rounded-md transition-colors duration-300 ${
+                  isDarkMode
+                    ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {isDarkMode ? (
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Zoom controls - Visible on all devices */}
+              <div className={`flex items-center gap-1 rounded-md p-1 transition-colors duration-300 ${
+                isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+              }`}>
                 <button 
                   onClick={() => zoom(-0.2)} 
-                  className="p-1 text-gray-600 hover:text-gray-900 hover:bg-white rounded"
+                  className={`p-1 rounded transition-colors duration-300 ${
+                    isDarkMode 
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-600' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                  }`}
                   title="Zoom out"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
                   </svg>
                 </button>
-                <span className="px-2 text-sm text-gray-600 min-w-[3rem] text-center">
+                <span className={`px-2 text-xs sm:text-sm min-w-[2.5rem] sm:min-w-[3rem] text-center transition-colors duration-300 ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
                   {Math.round(scale * 100)}%
                 </span>
                 <button 
                   onClick={() => zoom(0.2)} 
-                  className="p-1 text-gray-600 hover:text-gray-900 hover:bg-white rounded"
+                  className={`p-1 rounded transition-colors duration-300 ${
+                    isDarkMode 
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-600' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                  }`}
                   title="Zoom in"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -944,40 +1195,56 @@ export default function Space() {
                 </button>
               </div>
 
-              <div className={`px-3 py-1 rounded text-sm ${connectionStatus.color}`}>
-                WS: {connectionStatus.status}
+              {/* WebSocket Status - Hidden on small screens */}
+              <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${connectionStatus.color}`}>
+                <span className="hidden sm:inline">WS: </span>
+                {connectionStatus.status}
               </div>
 
+              {/* User Role - Hidden on small screens */}
               {userPermissions && (
-                <div className="px-3 py-1 rounded text-sm bg-blue-100 text-blue-800">
+                <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${
+                  isDarkMode ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'
+                }`}>
                   {userRole || "VIEWER"}
                 </div>
               )}
 
-             
-
+              {/* Action buttons */}
               <button
                 onClick={addSnippet}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 disabled:opacity-50 ${
+                  isDarkMode
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
+                }`}
                 disabled={!canEdit}
               >
-                Add Snippet
+                <span className="hidden sm:inline">Add Snippet</span>
+                <span className="sm:hidden">Add</span>
               </button>
 
               <button
                 onClick={fetchSpaceData}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 ${
+                  isDarkMode
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
               >
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
+                <span className="sm:hidden">↻</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Canvas with Infinite Grid - Full Width */}
+        {/* Canvas with Infinite Grid */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-hidden relative bg-gray-50"
+          className={`flex-1 overflow-hidden relative transition-colors duration-300 ${
+            isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
+          }`}
           onWheel={handleWheel}
         >
           <motion.div
@@ -986,18 +1253,22 @@ export default function Space() {
             style={{
               transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
               transformOrigin: '0 0',
+              touchAction: 'none'
             }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             {/* Infinite Grid background */}
             <div
               className="absolute inset-0 opacity-20"
               style={{
                 backgroundImage: `
-                  linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)
+                  linear-gradient(${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px),
+                  linear-gradient(90deg, ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px)
                 `,
                 backgroundSize: `${20 * scale}px ${20 * scale}px`,
                 backgroundPosition: `${panX % (20 * scale)}px ${panY % (20 * scale)}px`
@@ -1014,16 +1285,25 @@ export default function Space() {
                 onStartEditing={() => startEditing(snippet)}
                 onTagRightClick={handleTagRightClick}
                 onFilesChanged={handleSnippetFilesChanged}
+                isDarkMode={isDarkMode}
               />
             ))}
 
             {/* Empty state */}
             {filteredSnippets.length === 0 && (
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                <div className="text-gray-500 mb-4 text-lg">No snippets found</div>
+                <div className={`mb-4 text-lg transition-colors duration-300 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  No snippets found
+                </div>
                 <button
                   onClick={addSnippet}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className={`px-6 py-3 rounded-lg font-medium transition-colors duration-300 disabled:opacity-50 ${
+                    isDarkMode
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
+                  }`}
                   disabled={!userPermissions?.allowed}
                 >
                   Create Your First Snippet
@@ -1034,26 +1314,31 @@ export default function Space() {
         </div>
       </div>
 
-      {/* Right-side Fixed Sidebar */}
-      <Sidebar
-        snippets={getOrderedSnippets()}
-        filteredSnippets={filteredSnippets}
-        snippetOrder={snippetOrder}
-        searchQuery={searchQuery}
-        tagFilters={tagFilters}
-        getAllTags={getAllTags}
-        onSearchChange={setSearchQuery}
-        onToggleTagFilter={toggleTagFilter}
-        onClearAllFilters={clearAllFilters}
-        onReorderSnippets={reorderSnippets}
-        onUpdateSnippet={updateSnippet}
-        onDeleteSnippet={deleteSnippet}
-        onNavigateToBox={navigateToBox} 
-        spaceId={spaceId} 
-        userRole={userRole || "VIEWER"}   
-        isSpacePublic={spaceData?.isPublic || false}
-        onToggleSpaceVisibility={handleToggleSpaceVisibility}   
-      />
+      {/* Sidebar - NO BLACK OVERLAY */}
+      {isSidebarOpen && (
+        <div className="fixed top-0 right-0 h-full w-80 z-50">
+          <Sidebar
+            snippets={getOrderedSnippets()}
+            filteredSnippets={filteredSnippets}
+            snippetOrder={snippetOrder}
+            searchQuery={searchQuery}
+            tagFilters={tagFilters}
+            getAllTags={getAllTags}
+            onSearchChange={setSearchQuery}
+            onToggleTagFilter={toggleTagFilter}
+            onClearAllFilters={clearAllFilters}
+            onReorderSnippets={reorderSnippets}
+            onUpdateSnippet={updateSnippet}
+            onDeleteSnippet={deleteSnippet}
+            onNavigateToBox={navigateToBox} 
+            spaceId={spaceId} 
+            userRole={userRole || "VIEWER"}   
+            isSpacePublic={spaceData?.isPublic || false}
+            onToggleSpaceVisibility={handleToggleSpaceVisibility}
+            isDarkMode={isDarkMode}
+          />
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editingSnippet && (
@@ -1084,17 +1369,33 @@ export default function Space() {
           onSave={saveEdit}
           onCancel={cancelEdit}
           onDelete={deleteSnippet}
+          isDarkMode={isDarkMode}
         />
       )}
 
       {/* Tag Color Menu */}
       {tagColorMenu.show && (
         <div
-          className="fixed bg-white rounded-lg shadow-lg border border-gray-200 p-2 z-50"
+          className={`fixed rounded-lg shadow-lg border p-2 z-50 transition-colors duration-300 ${
+            isDarkMode 
+              ? 'bg-gray-800 border-gray-600' 
+              : 'bg-white border-gray-200'
+          }`}
           style={{ left: tagColorMenu.x, top: tagColorMenu.y }}
         >
-          <div className="text-sm text-gray-600 p-2">
+          <div className={`text-sm p-2 transition-colors duration-300 ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-600'
+          }`}>
             Change color for "{tagColorMenu.tag}"
+          </div>
+          <div className="grid grid-cols-4 gap-2 mt-2">
+            {['bg-red-400', 'bg-blue-400', 'bg-green-400', 'bg-yellow-400', 'bg-purple-400', 'bg-pink-400', 'bg-indigo-400', 'bg-gray-400'].map(color => (
+              <button
+                key={color}
+                onClick={() => changeTagColor(tagColorMenu.tag, color)}
+                className={`w-6 h-6 rounded ${color} hover:scale-110 transition-transform`}
+              />
+            ))}
           </div>
         </div>
       )}
