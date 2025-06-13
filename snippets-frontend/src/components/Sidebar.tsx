@@ -341,7 +341,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <motion.div
         animate={{ width: isCollapsed ? 60 : 380 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="fixed right-4 top-4 bottom-4 bg-white rounded-xl shadow-2xl z-50 flex flex-col border border-gray-100 overflow-hidden"
+        className="fixed right-4 top-20 bottom-4 bg-white rounded-xl shadow-2xl z-50 flex flex-col border border-gray-100 overflow-hidden h-[90vh]"
         style={{
           background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.95) 100%)',
           backdropFilter: 'blur(10px)'

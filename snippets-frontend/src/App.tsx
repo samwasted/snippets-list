@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import SpaceAnalytics from './components/SpaceAnalytics';
 import UnifiedAuth from './components/unifiedAuth';
+import ProfilePage from './components/Profile';
 
 // Authentication context 
 const AuthContext = React.createContext<{
@@ -196,6 +197,7 @@ function App() {
                 <Dashboard />
               </ProtectedRoute>
             } />
+            <Route path="/profile/:username" element={<ProfilePage />} />
             <Route path="/space/:spaceId" element={
               <ProtectedRoute>
                 <Space />

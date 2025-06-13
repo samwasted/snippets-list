@@ -67,3 +67,37 @@ button:focus-visible {
   }
 } */
 @import "tailwindcss";
+.canvas-container {
+  transform-origin: 0 0; /* Always use top-left as origin */
+  will-change: transform; /* Optimize for frequent transforms */
+}
+
+.box-component {
+  transform-origin: 0 0; /* Consistent origin for all boxes */
+  backface-visibility: hidden; /* Improve rendering performance */
+  transform: translate3d(0, 0, 0); /* Force hardware acceleration */
+}
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: #ffffff;
+  --color-surface: #f9fafb;
+  --color-text: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+  --color-primary: #3b82f6;
+  --color-success: #10b981;
+}
+
+/* Dark mode overrides */
+@layer theme {
+  .dark {
+    --color-background: #1f2937;
+    --color-surface: #374151;
+    --color-text: #f9fafb;
+    --color-text-secondary: #d1d5db;
+    --color-border: #4b5563;
+    --color-primary: #60a5fa;
+    --color-success: #34d399;
+  }
+}

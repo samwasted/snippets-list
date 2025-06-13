@@ -235,46 +235,87 @@ export default function Space() {
       document.removeEventListener('mouseup', handleGlobalMouseUp);
     };
   }, [isDragging, dragStart, panStart]);
+   const moveSnippet = async (id: string, deltaX: number, deltaY: number) => {
+    const snippet = snippets.find(s => s.id === id);
+    if (!snippet) return;
 
+    const newX = Math.round(snippet.x + deltaX);
+    const newY = Math.round(snippet.y + deltaY);
+
+    // Apply optimistic update
+    setSnippets(prev => prev.map(s => {
+      if (s.id === id) {
+        return { ...s, x: newX, y: newY, updatedAt: new Date() };
+      }
+      return s;
+    }));
+
+    try {
+      console.log('Updating snippet position via HTTP...', { id, x: newX, y: newY });
+      await apiRequest(`/space/${spaceId}/snippet/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ x: newX, y: newY })
+      });
+
+      if (sendSnippetMove && isJoined) {
+        console.log('Broadcasting snippet movement via WebSocket...');
+        await sendSnippetMove({
+          snippetId: id,
+          x: newX,
+          y: newY
+        });
+      }
+    } catch (error) {
+      console.error("Failed to update snippet position:", error);
+      if (snippet) {
+        setSnippets(prev => prev.map(s => s.id === id ? snippet : s));
+      } else {
+        fetchSpaceData();
+      }
+    }
+  };
   // WebSocket message handling
   useEffect(() => {
-    if (!lastMessage) return;
+  if (!lastMessage) return;
 
-    console.log('Processing WebSocket message:', lastMessage);
+  console.log('Processing WebSocket message:', lastMessage);
 
-    const isFromCurrentUser = lastMessage.userId === currentUser?.id;
+  const isFromCurrentUser = lastMessage.userId === currentUser?.id;
 
-    if (isFromCurrentUser) {
-      console.log('Skipping echo from current user');
-      return;
-    }
+  switch (lastMessage.type) {
+    case 'snippet-moved':
+      const moveId = lastMessage.payload.snippetId || lastMessage.payload.id;
+      if (!moveId) return;
 
-    switch (lastMessage.type) {
-      case 'snippet-moved':
-        const moveId = lastMessage.payload.snippetId || lastMessage.payload.id;
-        if (!moveId) return;
+      // Always process move updates to ensure all users see position changes
+      setSnippets(prev => prev.map(snippet => {
+        if (snippet.id === moveId) {
+          return {
+            ...snippet,
+            x: Math.round(lastMessage.payload.x ?? snippet.x),
+            y: Math.round(lastMessage.payload.y ?? snippet.y),
+            updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
+          };
+        }
+        return snippet;
+      }));
+      break;
 
-        setSnippets(prev => prev.map(snippet => {
-          if (snippet.id === moveId) {
-            return {
-              ...snippet,
-              x: Math.round(lastMessage.payload.x ?? snippet.x),
-              y: Math.round(lastMessage.payload.y ?? snippet.y),
-              updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
-            };
-          }
-          return snippet;
-        }));
-        break;
+    case 'snippet-created':
+      const snippetId = lastMessage.payload.snippetId || lastMessage.payload.id;
+      if (!snippetId) return;
 
-      case 'snippet-created':
-        const snippetId = lastMessage.payload.snippetId || lastMessage.payload.id;
-        if (!snippetId) return;
-
-        setSnippets(prev => {
-          const exists = prev.some(s => s.id === snippetId);
-          if (exists) return prev;
-
+      setSnippets(prev => {
+        const exists = prev.some(s => s.id === snippetId);
+        
+        // Skip only if from current user AND already exists (prevents duplicates)
+        if (exists && isFromCurrentUser) {
+          console.log('Skipping duplicate creation from current user');
+          return prev;
+        }
+        
+        // Process all other cases (new snippets from others, or missing snippets)
+        if (!exists) {
           const newSnippet = {
             id: snippetId,
             title: lastMessage.payload.title || 'Untitled Snippet',
@@ -289,28 +330,38 @@ export default function Space() {
             createdAt: new Date(lastMessage.payload.createdAt || Date.now()),
             updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
           };
+           if (!isFromCurrentUser) {
+            console.log('Sending HTTP edit request for newly created snippet...');
+            try{
+              fetchSpaceData()
+            } catch(e){
+              console.log("chud gye guru")
+            }
+          }
 
           return [...prev, newSnippet];
-        });
+        }
+        
+        return prev;
+      });
 
-        setSnippetOrder(prev => {
-          if (!snippetId || prev.includes(snippetId)) return prev;
-          return [...prev, snippetId];
-        });
-        break;
+      setSnippetOrder(prev => {
+        if (!snippetId || prev.includes(snippetId)) return prev;
+        return [...prev, snippetId];
+      });
+      break;
 
-      case 'snippet-deleted':
-        const deletedId = lastMessage.payload.snippetId || lastMessage.payload.id;
-        if (!deletedId) return;
+    case 'snippet-updated':
+      const targetId = lastMessage.payload.snippetId || lastMessage.payload.id;
+      if (!targetId) return;
 
-        setSnippets(prev => prev.filter(snippet => snippet.id !== deletedId));
-        setSnippetOrder(prev => prev.filter(id => id !== deletedId));
-        break;
+      // CRITICAL FIX: Always process updates from other users
+      // Only skip if it's a duplicate immediate echo from current user
+      const shouldSkipUpdate = isFromCurrentUser && 
+        typeof lastMessage.timestamp === 'number' &&
+        (Date.now() - lastMessage.timestamp < 1000); // 1 second grace period
 
-      case 'snippet-updated':
-        const targetId = lastMessage.payload.snippetId || lastMessage.payload.id;
-        if (!targetId) return;
-
+      if (!shouldSkipUpdate) {
         setSnippets(prev => prev.map(snippet => {
           if (snippet.id === targetId) {
             return {
@@ -327,15 +378,25 @@ export default function Space() {
           }
           return snippet;
         }));
-        break;
+      }
+      break;
 
-      case 'space-view':
-        if (lastMessage.payload.order && Array.isArray(lastMessage.payload.order)) {
-          setSnippetOrder(lastMessage.payload.order);
-        }
-        break;
-    }
-  }, [lastMessage, spaceId, currentUser?.id]);
+    case 'snippet-deleted':
+      const deletedId = lastMessage.payload.snippetId || lastMessage.payload.id;
+      if (!deletedId) return;
+
+      // Always process deletions to ensure consistency
+      setSnippets(prev => prev.filter(snippet => snippet.id !== deletedId));
+      setSnippetOrder(prev => prev.filter(id => id !== deletedId));
+      break;
+
+    case 'space-view':
+      if (lastMessage.payload.order && Array.isArray(lastMessage.payload.order)) {
+        setSnippetOrder(lastMessage.payload.order);
+      }
+      break;
+  }
+}, [lastMessage, spaceId, currentUser?.id]);
 
   const navigateToBox = (snippet: Snippet) => {
     if (!containerRef.current || !canvasRef.current) return;
@@ -646,45 +707,7 @@ export default function Space() {
   };
 
   // Move snippet with proper coordinate calculation
-  const moveSnippet = async (id: string, deltaX: number, deltaY: number) => {
-    const snippet = snippets.find(s => s.id === id);
-    if (!snippet) return;
-
-    const newX = Math.round(snippet.x + deltaX);
-    const newY = Math.round(snippet.y + deltaY);
-
-    // Apply optimistic update
-    setSnippets(prev => prev.map(s => {
-      if (s.id === id) {
-        return { ...s, x: newX, y: newY, updatedAt: new Date() };
-      }
-      return s;
-    }));
-
-    try {
-      console.log('Updating snippet position via HTTP...', { id, x: newX, y: newY });
-      await apiRequest(`/space/${spaceId}/snippet/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ x: newX, y: newY })
-      });
-
-      if (sendSnippetMove && isJoined) {
-        console.log('Broadcasting snippet movement via WebSocket...');
-        await sendSnippetMove({
-          snippetId: id,
-          x: newX,
-          y: newY
-        });
-      }
-    } catch (error) {
-      console.error("Failed to update snippet position:", error);
-      if (snippet) {
-        setSnippets(prev => prev.map(s => s.id === id ? snippet : s));
-      } else {
-        fetchSpaceData();
-      }
-    }
-  };
+ 
 
   // Delete snippet
   const deleteSnippet = async (id: string) => {
@@ -931,25 +954,7 @@ export default function Space() {
                 </div>
               )}
 
-              <button
-                onClick={() => zoom(0.1)}
-                className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
-                title="Zoom In"
-              >
-                +
-              </button>
-
-              <button
-                onClick={() => zoom(-0.1)}
-                className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
-                title="Zoom Out"
-              >
-                -
-              </button>
-
-              <span className="text-sm text-gray-600">
-                {Math.round(scale * 100)}%
-              </span>
+             
 
               <button
                 onClick={addSnippet}

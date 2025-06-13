@@ -327,3 +327,68 @@ userRouter.get("/analytics/activity", userMiddleware, async (req, res) => { //va
         }
     });
 });
+// Get user profile by username (public route - no auth required)
+userRouter.get("/profile/:username", async (req, res) => {
+    const { username } = req.params;
+    
+    try {
+        const user = await client.user.findUnique({
+            where: { username },
+            select: {
+                id: true,
+                username: true,
+                name: true,
+                role: true,
+                createdAt: true
+            }
+        });
+        
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+        
+        res.json({ user });
+    } catch (error) {
+        console.error("Error fetching user profile:", error);
+        res.status(500).json({ message: "Failed to fetch user profile" });
+    }
+});
+// Get public spaces for a specific user (public route)
+userRouter.get("/:userId/spaces/public", async (req, res) => {
+    const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    
+    try {
+        const spaces = await client.space.findMany({
+            where: { 
+                ownerId: userId,
+                isPublic: true 
+            },
+            skip,
+            take: parseInt(limit as string),
+            include: {
+                _count: {
+                    select: { 
+                        snippets: true, 
+                        collaborators: true,
+                        views: true
+                    }
+                }
+            },
+            orderBy: { updatedAt: 'desc' }
+        });
+        
+        res.json({ 
+            spaces,
+            pagination: { 
+                page: parseInt(page as string), 
+                limit: parseInt(limit as string) 
+            }
+        });
+    } catch (error) {
+        console.error("Error fetching public spaces:", error);
+        res.status(500).json({ message: "Failed to fetch public spaces" });
+    }
+});
