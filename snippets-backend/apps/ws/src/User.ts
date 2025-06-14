@@ -10,7 +10,7 @@ import {
 } from "./types";
 import client from "@repo/db";
 import jwt, { JwtPayload } from "jsonwebtoken";
-import { JWT_PASSWORD } from "./config";
+// import { JWT_PASSWORD } from "./config";
 
 function getRandomString(length: number): string {
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -241,7 +241,7 @@ export class User {
             }
 
             const { token } = payload;
-            const decoded = jwt.verify(token, process.env.JWT_PASSWORD || JWT_PASSWORD) as { userId: string, role: string };
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || "ABC") as { userId: string, role: string };
             const userId = decoded.userId;
 
             if (!userId) {

@@ -1,22 +1,36 @@
 {
   "name": "ws",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npx esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --tsconfig=tsconfig.json",
+    "prebuild": "pnpm --filter @repo/db exec prisma generate --schema=../../packages/db/prisma/schema.prisma",
+    "build": "pnpm esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --tsconfig=tsconfig.json --external:ws --external:jsonwebtoken --external:bufferutil --external:utf-8-validate --external:@types/ws --external:@types/jsonwebtoken --external:@prisma/client",
     "start": "node dist/index.js",
-    "dev": "npm run build && npm run start"
+    "dev": "pnpm run build && pnpm run start",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "render": "pnpm install && pnpm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
+  "devDependencies": {
+    "esbuild": "^0.19.0",
+    "typescript": "^5.8.3"
+  },
   "dependencies": {
+    "@prisma/client": "^6.8.2",
+    "@repo/db": "workspace:*",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/ws": "^8.18.1",
+    "bufferutil": "^4.0.9",
+    "dotenv": "^16.5.0",
     "jsonwebtoken": "^9.0.2",
-    "ws": "^8.18.2",
-    "@repo/db": "workspace:*"
+    "utf-8-validate": "^5.0.10",
+    "ws": "^8.18.2"
   }
 }

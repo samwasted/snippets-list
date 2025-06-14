@@ -2,9 +2,11 @@ import { WebSocketServer } from 'ws';
 import { IncomingMessage } from 'http';
 import { User } from './User';
 import { parse } from 'url';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const wss = new WebSocketServer({ 
-    port: 3001,
+    port: Number(process.env.PORT) || 3001,
     // Add these options for better connection handling
     perMessageDeflate: false,
     maxPayload: 16 * 1024 * 1024, // 16MB max payload
