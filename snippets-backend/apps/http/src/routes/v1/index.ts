@@ -6,7 +6,6 @@ import { SigninSchema, SignupSchema, PaginationSchema } from "../../types";
 import { hash, compare } from "../../scrypt";
 import jwt from "jsonwebtoken"
 import client from "@repo/db"
-import { JWT_PASSWORD } from "../../config";
 
 export const router = Router()
 
@@ -26,7 +25,7 @@ router.post("/signup", async (req, res) => { //validated
                 name: parsedData.data.name,
                 username: parsedData.data.username,
                 password: hashedPassword,
-                role: parsedData.data.type === "admin" ? "ADMIN" : "USER"
+                role: parsedData.data.role === "admin" ? "ADMIN" : "USER"
             }
         })
         res.status(200).json({
@@ -50,7 +49,7 @@ router.post("/signin", async (req, res) => { //validated
     try {
         const user = await client.user.findUnique({
             where: {
-               username: parsedData.data.username
+                username: parsedData.data.username
             }
         })
         if (!user) {
@@ -62,9 +61,13 @@ router.post("/signin", async (req, res) => { //validated
             res.status(401).json({ message: "password is incorrect" })
             return
         }
+        const JWT_SECRET = process.env.JWT_SECRET;
+        if (!JWT_SECRET) {
+            throw new Error('JWT_SECRET environment variable is not set.');
+        }
         const token = jwt.sign(
             { userId: user.id, role: user.role },
-            process.env.JWT_PASSWORD || JWT_PASSWORD)
+            process.env.JWT_SECRET || "ABC")
 
         res.status(200).json({
             token,
@@ -85,7 +88,7 @@ router.post("/signin", async (req, res) => { //validated
 router.post("/signout", async (req, res) => {
     // Since we're using stateless JWT, signout is handled client-side, we add delete token from local storage on frontend
     // We could implement token blacklisting here if needed
-    res.json({ 
+    res.json({
         message: "Signed out successfully",
         instruction: "Remove token from client storage"
     })
@@ -101,8 +104,12 @@ router.post("/refresh-token", async (req, res) => { //validated
     }
 
     try {
-        const decoded = jwt.verify(token, JWT_PASSWORD) as { userId: string, role: string }
-        
+        const JWT_SECRET = process.env.JWT_SECRET;
+        if (!JWT_SECRET) {
+            throw new Error('JWT_SECRET environment variable is not set.');
+        }
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string, role: string }
+
         // Verify user still exists and get updated info
         const user = await client.user.findUnique({
             where: { id: decoded.userId },
@@ -119,15 +126,17 @@ router.post("/refresh-token", async (req, res) => { //validated
             return
         }
 
-        // Generate new token with updated user info
-        const newToken = jwt.sign(
-            { userId: user.id, role: user.role },
-            JWT_PASSWORD,
+       
+        const payload = { userId: user.id, role: user.role };
+
+        const newtoken = jwt.sign(
+            payload,
+            JWT_SECRET, 
             { expiresIn: '7d' }
-        )
+        );
 
         res.json({
-            token: newToken,
+            token: newtoken,
             user
         })
     } catch (e) {
@@ -139,7 +148,7 @@ router.get("/search/spaces", async (req, res) => { //validated
     const { q, page = 1, limit = 10 } = req.query
     const { page: validPage, limit: validLimit } = PaginationSchema.parse({ page, limit })
     const skip = (validPage - 1) * validLimit
-    
+
     if (!q || typeof q !== 'string') {
         res.status(400).json({ message: "Search query 'q' is required" })
         return
@@ -147,7 +156,7 @@ router.get("/search/spaces", async (req, res) => { //validated
 
     try {
         const searchQuery = q.trim()
-        
+
         // Search public spaces by name
         const [spaces, totalCount] = await Promise.all([
             client.space.findMany({
@@ -157,7 +166,7 @@ router.get("/search/spaces", async (req, res) => { //validated
                         {
                             OR: [
                                 { name: { contains: searchQuery, mode: 'insensitive' } },
-                                { 
+                                {
                                     snippets: {
                                         some: {
                                             OR: [
@@ -219,7 +228,7 @@ router.get("/search/spaces", async (req, res) => { //validated
                         {
                             OR: [
                                 { name: { contains: searchQuery, mode: 'insensitive' } },
-                                { 
+                                {
                                     snippets: {
                                         some: {
                                             OR: [
@@ -301,8 +310,8 @@ router.get("/search/spaces", async (req, res) => { //validated
 
 // Health check route
 router.get("/health", (req, res) => { //validated
-    res.json({ 
-        status: "ok", 
+    res.json({
+        status: "ok",
         timestamp: new Date().toISOString(),
         service: "code-sharing-api"
     })

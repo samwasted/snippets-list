@@ -7,7 +7,6 @@ import type {
   AnalyticsViewsResponse, 
   PopularContentResponse,
   SnippetResponse,
-  PaginationParams,
   AnalyticsParams
 } from "../types/admin";
 

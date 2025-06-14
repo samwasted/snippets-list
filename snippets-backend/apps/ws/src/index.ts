@@ -165,9 +165,7 @@ wss.on('connection', function connection(ws, req: IncomingMessage) {
     }
 });
 
-console.log('WebSocket server running on ws://localhost:3001');
-console.log('Available routes:');
-console.log('  - ws://localhost:3001/ws/space/:spaceId');
+console.log('WebSocket server running');
 
 // Optional: Add a health check endpoint info
 wss.on('listening', () => {
