@@ -15,6 +15,8 @@
     "@tailwindcss/postcss": "^4.1.10",
     "@tailwindcss/vite": "^4.1.8",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@uiw/codemirror-extensions-langs": "^4.23.13",
+    "@uiw/react-codemirror": "^4.23.13",
     "axios": "^1.9.0",
     "framer-motion": "^12.15.0",
     "lucide-react": "^0.511.0",
@@ -22,11 +24,11 @@
     "react-dom": "^19.1.0",
     "react-draggable": "^4.4.6",
     "react-router-dom": "^7.6.2",
-    "react-syntax-highlighter": "^15.6.1",
     "react-toastify": "^11.0.5",
     "react-zoom-pan-pinch": "^3.7.0",
     "reactflow": "^11.11.4",
     "recharts": "^2.15.3",
+    "tailwind-scrollbar": "^4.0.2",
     "tailwindcss": "^4.1.10"
   },
   "devDependencies": {

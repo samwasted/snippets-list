@@ -1,6 +1,8 @@
-import React, { useState, useRef } from "react";
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import React, { useRef } from "react";
+import CodeMirror from '@uiw/react-codemirror';
+import { loadLanguage } from '@uiw/codemirror-extensions-langs';
+import { oneDark } from '@codemirror/theme-one-dark';
+import type { Extension } from '@codemirror/state';
 import { colors, colorNames } from "./types";
 
 // Define types
@@ -16,28 +18,28 @@ interface Box {
 
 // Major programming languages for the dropdown
 const PROGRAMMING_LANGUAGES = [
-  { value: 'javascript', label: 'JavaScript', extensions: ['.js', '.mjs'], prismLang: 'javascript' },
-  { value: 'typescript', label: 'TypeScript', extensions: ['.ts', '.tsx'], prismLang: 'typescript' },
-  { value: 'python', label: 'Python', extensions: ['.py', '.pyw'], prismLang: 'python' },
-  { value: 'java', label: 'Java', extensions: ['.java'], prismLang: 'java' },
-  { value: 'cpp', label: 'C++', extensions: ['.cpp', '.cxx', '.cc'], prismLang: 'cpp' },
-  { value: 'c', label: 'C', extensions: ['.c', '.h'], prismLang: 'c' },
-  { value: 'csharp', label: 'C#', extensions: ['.cs'], prismLang: 'csharp' },
-  { value: 'php', label: 'PHP', extensions: ['.php'], prismLang: 'php' },
-  { value: 'ruby', label: 'Ruby', extensions: ['.rb'], prismLang: 'ruby' },
-  { value: 'go', label: 'Go', extensions: ['.go'], prismLang: 'go' },
-  { value: 'rust', label: 'Rust', extensions: ['.rs'], prismLang: 'rust' },
-  { value: 'swift', label: 'Swift', extensions: ['.swift'], prismLang: 'swift' },
-  { value: 'kotlin', label: 'Kotlin', extensions: ['.kt', '.kts'], prismLang: 'kotlin' },
-  { value: 'html', label: 'HTML', extensions: ['.html', '.htm'], prismLang: 'markup' },
-  { value: 'css', label: 'CSS', extensions: ['.css', '.scss', '.sass'], prismLang: 'css' },
-  { value: 'sql', label: 'SQL', extensions: ['.sql'], prismLang: 'sql' },
-  { value: 'json', label: 'JSON', extensions: ['.json'], prismLang: 'json' },
-  { value: 'xml', label: 'XML', extensions: ['.xml'], prismLang: 'xml' },
-  { value: 'yaml', label: 'YAML', extensions: ['.yml', '.yaml'], prismLang: 'yaml' },
-  { value: 'markdown', label: 'Markdown', extensions: ['.md', '.markdown'], prismLang: 'markdown' },
-  { value: 'shell', label: 'Shell/Bash', extensions: ['.sh', '.bash'], prismLang: 'bash' },
-  { value: 'text', label: 'Plain Text', extensions: ['.txt'], prismLang: 'text' }
+  { value: 'javascript', label: 'JavaScript', extensions: ['.js', '.mjs'] },
+  { value: 'typescript', label: 'TypeScript', extensions: ['.ts', '.tsx'] },
+  { value: 'python', label: 'Python', extensions: ['.py', '.pyw'] },
+  { value: 'java', label: 'Java', extensions: ['.java'] },
+  { value: 'cpp', label: 'C++', extensions: ['.cpp', '.cxx', '.cc'] },
+  { value: 'c', label: 'C', extensions: ['.c', '.h'] },
+  { value: 'csharp', label: 'C#', extensions: ['.cs'] },
+  { value: 'php', label: 'PHP', extensions: ['.php'] },
+  { value: 'ruby', label: 'Ruby', extensions: ['.rb'] },
+  { value: 'go', label: 'Go', extensions: ['.go'] },
+  { value: 'rust', label: 'Rust', extensions: ['.rs'] },
+  { value: 'swift', label: 'Swift', extensions: ['.swift'] },
+  { value: 'kotlin', label: 'Kotlin', extensions: ['.kt', '.kts'] },
+  { value: 'html', label: 'HTML', extensions: ['.html', '.htm'] },
+  { value: 'css', label: 'CSS', extensions: ['.css', '.scss', '.sass'] },
+  { value: 'sql', label: 'SQL', extensions: ['.sql'] },
+  { value: 'json', label: 'JSON', extensions: ['.json'] },
+  { value: 'xml', label: 'XML', extensions: ['.xml'] },
+  { value: 'yaml', label: 'YAML', extensions: ['.yml', '.yaml'] },
+  { value: 'markdown', label: 'Markdown', extensions: ['.md', '.markdown'] },
+  { value: 'shell', label: 'Shell/Bash', extensions: ['.sh', '.bash'] },
+  { value: 'text', label: 'Plain Text', extensions: ['.txt'] }
 ];
 
 // Function to detect language from file extension
@@ -53,12 +55,6 @@ const detectLanguageFromExtension = (filename: string): string => {
 const getFileExtension = (language: string): string => {
   const lang = PROGRAMMING_LANGUAGES.find(l => l.value === language);
   return lang ? lang.extensions[0] : '.txt';
-};
-
-// Function to get Prism language for syntax highlighting
-const getPrismLanguage = (language: string): string => {
-  const lang = PROGRAMMING_LANGUAGES.find(l => l.value === language);
-  return lang?.prismLang || 'text';
 };
 
 interface EditModalProps {
@@ -153,12 +149,26 @@ const EditModal: React.FC<EditModalProps> = ({
     onCodeLanguageChange('text');
   };
 
+  // Get language extension for CodeMirror - FIXED TYPE ISSUE
+  const getLanguageExtension = (language: string): Extension[] => {
+    try {
+      const ext = loadLanguage(language as Parameters<typeof loadLanguage>[0]);
+      // Filter out null values and ensure we return Extension[]
+      return ext ? [ext] : [];
+    } catch (error) {
+      // Return empty array as fallback instead of null
+      console.warn(`Language ${language} not supported, falling back to plain text`);
+      return [];
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 cursor-default">
-      <div className={`rounded-xl p-6 w-[700px] max-h-[90vh] overflow-y-auto shadow-2xl transition-all duration-300 backdrop-blur-lg border-2 ${isDarkMode
-        ? 'bg-gray-900/30 text-white border-gray-600/40'
-        : 'bg-white/70 text-gray-900 border-gray-300/40'
+      <div className={`rounded-xl p-6 w-[700px] max-h-[90vh] overflow-y-auto shadow-2xl transition-all duration-300 backdrop-blur-lg border-2 scrollbar scrollbar-thumb-rounded ${isDarkMode
+          ? 'bg-gray-900/30 text-white border-gray-600/40 scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500'
+          : 'bg-white/70 text-gray-900 border-gray-300/40 scrollbar-thumb-gray-400 scrollbar-track-gray-50 hover:scrollbar-thumb-gray-500'
         }`}>
+
         <h3 className={`text-xl font-bold mb-6 flex items-center transition-colors duration-300 ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
           }`}>
           <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -201,7 +211,7 @@ const EditModal: React.FC<EditModalProps> = ({
           />
         </div>
 
-        {/* Code Section - Updated with enhanced dark mode support */}
+        {/* Code Section - FIXED with proper Extension type handling */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-3">
             <label className={`block text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -248,11 +258,12 @@ const EditModal: React.FC<EditModalProps> = ({
             </div>
           </div>
 
-          {/* Enhanced Code Editor with live syntax highlighting */}
+          {/* Enhanced Code Editor with @uiw/react-codemirror - FIXED TYPE ISSUES */}
           <div className="min-h-[200px]">
             <div className="relative">
-              <div className={`px-4 py-2 rounded-t-lg flex items-center justify-between transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-800'
-                }`}>
+              <div className={`px-4 py-2 rounded-t-lg flex items-center justify-between transition-colors duration-300 ${
+                isDarkMode ? 'bg-gray-900' : 'bg-gray-800'
+              }`}>
                 <span className="text-white text-sm font-medium flex items-center gap-2">
                   <span className="w-2 h-2 bg-green-400 rounded-full"></span>
                   {PROGRAMMING_LANGUAGES.find(l => l.value === editCodeLanguage)?.label || 'Code'}
@@ -266,40 +277,32 @@ const EditModal: React.FC<EditModalProps> = ({
                   </button>
                 </div>
               </div>
-              <div className="relative">
-                <textarea
+              
+              <div className="border-0 rounded-b-lg overflow-hidden">
+                <CodeMirror
                   value={editCode}
-                  onChange={(e) => onCodeChange(e.target.value)}
-                  rows={12}
-                  className="w-full px-4 py-3 font-mono text-sm border-0 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical absolute inset-0 z-10 opacity-100 bg-transparent text-transparent cursor-text"
+                  onChange={(value) => onCodeChange(value)}
+                  extensions={getLanguageExtension(editCodeLanguage)}
+                  theme={isDarkMode ? oneDark : 'light'}
                   placeholder="// Start coding here..."
+                  height="300px"
+                  basicSetup={{
+                    lineNumbers: true,
+                    foldGutter: true,
+                    dropCursor: false,
+                    allowMultipleSelections: false,
+                    indentOnInput: true,
+                    bracketMatching: true,
+                    closeBrackets: true,
+                    autocompletion: true,
+                    highlightSelectionMatches: false,
+                    searchKeymap: true,
+                  }}
                   style={{
-                    tabSize: 2,
-                    paddingLeft: '35px',
                     fontSize: '14px',
-                    lineHeight: '1.5',
-                    caretColor: '#10b981' // This ensures visible cursor
+                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
                   }}
                 />
-
-                <div className="w-full">
-                  <SyntaxHighlighter
-                    language={getPrismLanguage(editCodeLanguage)}
-                    style={isDarkMode ? vscDarkPlus : oneLight}
-                    customStyle={{
-                      margin: 0,
-                      borderTopLeftRadius: 0,
-                      borderTopRightRadius: 0,
-                      fontSize: '14px',
-                      lineHeight: '1.5',
-                      minHeight: '200px',
-                      background: isDarkMode ? '#1f2937' : '#f9fafb'
-                    }}
-                    showLineNumbers={true}
-                  >
-                    {editCode || ' '}
-                  </SyntaxHighlighter>
-                </div>
               </div>
             </div>
           </div>

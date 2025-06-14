@@ -1,150 +1,122 @@
-import { useState, useEffect } from 'react';
-import { Code2,Layout, LogIn, UserPlus, Eye, FileText } from 'lucide-react';
-import axios from 'axios';
-
-type Space = {
-  name: string;
-  description?: string;
-  owner?: { username?: string };
-  _count?: { snippets?: number };
-  id?: number;
-  totalViews: number;
-};
+import { Code2, Sparkles, ArrowRight } from 'lucide-react';
 
 const WelcomePage = () => {
-  const [publicSpaces, setPublicSpaces] = useState<Space[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchPublicSpaces();
-  }, []);
-
-  const fetchPublicSpaces = async () => {
-    try {
-      const response = await axios.get('http://localhost:3000/api/v1/space/public');
-      setPublicSpaces(response.data.spaces || []);
-    } catch (err) {
-      console.error('Error fetching spaces:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleNavigation = (path: any) => {
-    window.location.href = path;
+  const handleJoin = () => {
+    window.location.href = '/auth';
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-purple-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-lg">
-              <Code2 className="h-5 w-5 text-white" />
-            </div>
-            <h1 className="text-xl font-bold text-gray-800">SnippetSpace</h1>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => handleNavigation('/login')}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-purple-600 transition-colors"
-            >
-              <LogIn className="h-4 w-4" />
-              <span>Login</span>
-            </button>
-            <button
-              onClick={() => handleNavigation('/signup')}
-              className="flex items-center space-x-2 px-5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-all"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span>Sign Up</span>
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 relative overflow-hidden">
+      {/* Animated Background Shapes */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Large floating triangle */}
+        <div className="absolute top-10 left-10 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-pink-400/20 transform rotate-45 animate-pulse"></div>
+        
+        {/* Floating circles */}
+        <div className="absolute top-1/4 right-1/4 w-24 h-24 bg-gradient-to-r from-indigo-400/30 to-purple-400/30 rounded-full animate-bounce" style={{animationDelay: '1s', animationDuration: '3s'}}></div>
+        
+        <div className="absolute bottom-1/3 left-1/5 w-16 h-16 bg-gradient-to-r from-pink-400/25 to-purple-400/25 rounded-full animate-ping" style={{animationDelay: '2s'}}></div>
+        
+        {/* Hexagon shapes */}
+        <div className="absolute top-1/2 right-10 w-20 h-20 bg-gradient-to-br from-indigo-400/20 to-purple-500/20 transform rotate-12 clip-hexagon animate-spin" style={{animationDuration: '8s'}}></div>
+        
+        {/* Diamond shape */}
+        <div className="absolute bottom-20 right-1/3 w-28 h-28 bg-gradient-to-r from-purple-400/15 to-indigo-400/15 transform rotate-45 animate-pulse" style={{animationDelay: '1.5s'}}></div>
+        
+        {/* Small floating squares */}
+        <div className="absolute top-1/3 left-1/2 w-12 h-12 bg-gradient-to-br from-pink-400/30 to-purple-400/30 transform rotate-12 animate-bounce" style={{animationDelay: '3s', animationDuration: '4s'}}></div>
+        
+        <div className="absolute bottom-1/4 left-1/3 w-10 h-10 bg-gradient-to-r from-indigo-400/25 to-purple-400/25 transform -rotate-12 animate-ping" style={{animationDelay: '0.5s'}}></div>
+        
+        {/* Large background circle */}
+        <div className="absolute -top-1/4 -right-1/4 w-96 h-96 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-full animate-pulse" style={{animationDuration: '6s'}}></div>
+        
+        {/* Floating pentagon */}
+        <div className="absolute top-3/4 left-10 w-18 h-18 bg-gradient-to-br from-purple-400/20 to-pink-400/20 clip-pentagon animate-spin" style={{animationDuration: '10s', animationDelay: '2s'}}></div>
+      </div>
+
+      {/* Glassmorphism overlay */}
+      <div className="absolute inset-0 bg-white/5 backdrop-blur-sm"></div>
+
+
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        {/* Hero */}
-        <div className="text-center mb-16">
-          <h2 className="text-5xl font-bold text-gray-800 mb-4">
+      <main className="relative z-40 max-w-6xl mx-auto px-6 py-20">
+        {/* Hero Section */}
+        <div className="text-center mb-20">
+          <div className="inline-block p-4 bg-white/10 rounded-full mb-8 backdrop-blur-sm">
+            <Code2 className="h-16 w-16 text-purple-300" />
+          </div>
+          
+          <h2 className="text-6xl md:text-7xl font-bold text-white mb-6 leading-tight">
             Organize Your
-            <span className="text-purple-600"> Code Snippets</span>
+            <br />
+            <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Code Snippets
+            </span>
           </h2>
-          <p className="text-lg text-gray-600 mb-8">
-            Create spaces, store snippets, and keep your code organized
+          
+          <p className="text-xl text-purple-200 mb-12 max-w-2xl mx-auto leading-relaxed">
+            Create beautiful spaces, store your code snippets, and keep everything organized in one magical place
           </p>
           
-          <div className="flex justify-center space-x-4">
+          <div className="flex justify-center">
             <button
-              onClick={() => handleNavigation('/signup')}
-              className="px-8 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-all font-medium"
+              onClick={handleJoin}
+              className="group px-12 py-5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-full hover:from-purple-600 hover:to-indigo-600 transition-all duration-300 transform hover:scale-105 font-semibold text-xl shadow-2xl hover:shadow-purple-500/25"
             >
-              Get Started
-            </button>
-            <button
-              onClick={() => handleNavigation('/login')}
-              className="px-8 py-3 border-2 border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors font-medium"
-            >
-              Sign In
+              <span className="flex items-center space-x-3">
+                <Sparkles className="h-6 w-6" />
+                <span>Join Now</span>
+                <ArrowRight className="h-6 w-6 group-hover:translate-x-1 transition-transform" />
+              </span>
             </button>
           </div>
         </div>
 
-
-
-        {/* Public Spaces */}
-        <div className="bg-white/40 rounded-xl p-8 border border-purple-200">
-          <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-            Public Spaces
-          </h3>
-
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+        {/* Features Grid */}
+        <div className="grid md:grid-cols-3 gap-8 mt-20">
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-purple-300/20 hover:bg-white/20 transition-all duration-300 transform hover:scale-105">
+            <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl w-fit mb-4">
+              <Code2 className="h-6 w-6 text-white" />
             </div>
-          ) : publicSpaces.length === 0 ? (
-            <div className="text-center py-8">
-              <Layout className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No public spaces yet</p>
+            <h3 className="text-xl font-semibold text-white mb-3">Smart Organization</h3>
+            <p className="text-purple-200">Create custom spaces and categories to keep your code snippets perfectly organized and easy to find.</p>
+          </div>
+          
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-purple-300/20 hover:bg-white/20 transition-all duration-300 transform hover:scale-105">
+            <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl w-fit mb-4">
+              <Sparkles className="h-6 w-6 text-white" />
             </div>
-          ) : (
-            <div className="overflow-x-auto pb-4">
-              <div className="flex space-x-4 min-w-max">
-                {publicSpaces.map((space) => (
-                  <div
-                    key={space.id}
-                    className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow cursor-pointer min-w-[280px] flex-shrink-0"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <Layout className="h-5 w-5 text-purple-600" />
-                      <div className="flex items-center text-gray-500 text-xs">
-                        <Eye className="h-3 w-3 mr-1" />
-                        {space.totalViews}
-                      </div>
-                    </div>
-                    
-                    <h4 className="font-medium text-gray-800 mb-1">{space.name}</h4>
-                    <p className="text-gray-600 text-xs mb-3 line-clamp-2">
-                      {space.description || 'No description'}
-                    </p>
-                    
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>{space.owner?.username || 'Anonymous'}</span>
-                      <div className="flex items-center">
-                        <FileText className="h-3 w-3 mr-1" />
-                        {space._count?.snippets || 0}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <h3 className="text-xl font-semibold text-white mb-3">Beautiful Interface</h3>
+            <p className="text-purple-200">Enjoy a clean, modern interface designed to make coding more delightful and productive.</p>
+          </div>
+          
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-purple-300/20 hover:bg-white/20 transition-all duration-300 transform hover:scale-105">
+            <div className="p-3 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl w-fit mb-4">
+              <ArrowRight className="h-6 w-6 text-white" />
             </div>
-          )}
+            <h3 className="text-xl font-semibold text-white mb-3">Quick Access</h3>
+            <p className="text-purple-200">Access your snippets instantly with powerful search and intuitive navigation features.</p>
+          </div>
         </div>
       </main>
+
+      <style>{`
+        .clip-hexagon {
+          clip-path: polygon(30% 0%, 70% 0%, 100% 50%, 70% 100%, 30% 100%, 0% 50%);
+        }
+        .clip-pentagon {
+          clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-20px) rotate(10deg); }
+        }
+        .animate-float {
+          animation: float 6s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 };

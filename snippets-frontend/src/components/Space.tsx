@@ -1,15 +1,15 @@
 import React from "react";
 import { useState, useEffect, useRef } from "react";
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from "./Sidebar";
 import Box from "./Box";
 import EditModal from "./EditModal";
-import { motion, animate} from "framer-motion";
+import { motion, animate } from "framer-motion";
 import { useSpaceWebSocket } from "./useSpaceWebSocket";
 import useDarkMode from "./useDarkMode";
-import type { TagColorMenuState, Box as BoxType, colors, colorNames } from "./types";
+import type { TagColorMenuState, Box as BoxType } from "./types";
 
-// Common type definitions harmonized from both components
+// Type definitions
 interface Snippet {
   id: string;
   title: string;
@@ -33,18 +33,6 @@ interface Space {
   isPublic: boolean;
   ownerId: string;
   snippets?: Snippet[];
-}
-
-interface User {
-  id: string;
-  name: string | null;
-  username?: string;
-  role?: string;
-}
-
-interface SpaceCollaborator {
-  userId: string;
-  role: string;
 }
 
 // API utilities
@@ -71,15 +59,14 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   return response.json();
 };
 
-// Main component
 export default function Space() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
-  // Fixed: Use React Router's useParams instead of manual URL parsing
   const { spaceId } = useParams<{ spaceId: string }>();
-  
-  // Add safety check for spaceId
+
+  // Safety check for spaceId
   if (!spaceId) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -91,20 +78,14 @@ export default function Space() {
     );
   }
 
-  // Dark mode state
+  // State management
   const [isDarkMode, toggleDarkMode] = useDarkMode();
-
-  // Zoom & pan state
   const [scale, setScale] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
-
-  // Pan drag state
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  
-  // Add refresh key for forcing re-renders after orientation changes
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Edit modal state
@@ -147,8 +128,6 @@ export default function Space() {
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   const [userRole, setUserRole] = useState<'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER' | null>(null);
-
-  // Sidebar state - Only controlled by toggle button
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const {
@@ -161,7 +140,6 @@ export default function Space() {
     isJoined,
     lastError,
     userPermissions,
-    joinSpace
   } = useSpaceWebSocket({
     spaceId,
     userId: currentUser.id,
@@ -207,48 +185,41 @@ export default function Space() {
     fetchSpaceData();
   }, []);
 
-  // ENHANCED: Orientation change handling with touch state reset
+  // Handle orientation changes
   useEffect(() => {
     const handleResize = () => {
-      // Reset touch state on orientation change to prevent stuck gestures
       setIsDragging(false);
       setDragStart({ x: 0, y: 0 });
       setPanStart({ x: panX, y: panY });
-      
-      // Force re-render to update coordinate calculations
+
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        console.log('Viewport updated:', rect.width, 'x', rect.height);
+        // console.log('Viewport updated:', rect.width, 'x', rect.height);
         setRefreshKey(prev => prev + 1);
       }
     };
 
     const handleOrientationChange = () => {
-      // Reset all touch-related state when orientation changes
-      console.log('Orientation change detected, resetting touch state');
+      // console.log('Orientation change detected, resetting touch state');
       setIsDragging(false);
       setDragStart({ x: 0, y: 0 });
       setPanStart({ x: panX, y: panY });
-      
-      // Small delay to ensure orientation change is complete
+
       setTimeout(() => {
         if (containerRef.current) {
           const rect = containerRef.current.getBoundingClientRect();
-          console.log('Post-orientation viewport:', rect.width, 'x', rect.height);
+          // console.log('Post-orientation viewport:', rect.width, 'x', rect.height);
         }
       }, 100);
     };
 
-    // Listen for both resize and orientation change events
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleOrientationChange);
-    
-    // Also listen for visual viewport changes (mobile browsers)
+
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleResize);
     }
 
-    // Listen for screen orientation API changes if available
     if (screen.orientation) {
       screen.orientation.addEventListener('change', handleOrientationChange);
     }
@@ -265,31 +236,22 @@ export default function Space() {
     };
   }, [panX, panY]);
 
-  // Coordinate validation helper for touch events after orientation changes
+  // Validate touch coordinates after orientation changes
   const validateTouchCoordinates = (touch: Touch) => {
     if (!containerRef.current) return null;
-    
+
     const rect = containerRef.current.getBoundingClientRect();
     const x = touch.clientX - rect.left;
     const y = touch.clientY - rect.top;
-    
-    // Validate coordinates are within container bounds
+
     if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
       return { x: touch.clientX, y: touch.clientY };
     }
-    
+
     return null;
   };
 
-  // Unified coordinate extraction for mouse and touch events
-  const getEventCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
-    if ('touches' in e && e.touches.length > 0) {
-      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-    return { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY };
-  };
-
-  // Canvas pan handlers - Mouse events
+  // Mouse event handlers for canvas panning
   const handleMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
@@ -315,29 +277,60 @@ export default function Space() {
     setIsDragging(false);
   };
 
-  // ENHANCED: Canvas pan handlers - Touch events for mobile with orientation support
+  // Handle code updates from drag-and-drop
+  const handleCodeUpdate = async (snippetId: string, code: string, fileName: string) => {
+    try {
+      setSnippets(prev => prev.map(snippet =>
+        snippet.id === snippetId
+          ? {
+            ...snippet,
+            code: code,
+            title: fileName.replace(/\.[^/.]+$/, ""),
+            description: `Loaded from: ${fileName}`
+          }
+          : snippet
+      ));
+
+      const response = await fetch(`/api/spaces/${spaceId}/snippet/${snippetId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: code,
+          title: fileName.replace(/\.[^/.]+$/, ""),
+          description: `Loaded from: ${fileName}`
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save code to server');
+      }
+    } catch (error) {
+      console.error('Error updating snippet code:', error);
+    }
+  };
+
+  // Touch event handlers for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length !== 1) return; // Only handle single touch
-    
+    if (e.touches.length !== 1) return;
+
     const touch = e.touches[0];
     const target = e.target as HTMLElement;
     const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
 
     if (!isOnCanvas) return;
 
-    // Validate coordinates after potential orientation change
     const validatedCoords = validateTouchCoordinates(touch as unknown as Touch);
     if (!validatedCoords) {
       console.log('Invalid touch coordinates detected, skipping');
       return;
     }
 
-    e.preventDefault(); // Prevent default touch behaviors like scrolling
-    
-    // Always reset state first to handle interrupted gestures
+    e.preventDefault();
     setIsDragging(false);
-    
-    // Small delay to ensure state is reset and orientation is stable
+
     setTimeout(() => {
       setIsDragging(true);
       setDragStart({ x: touch.clientX, y: touch.clientY });
@@ -349,8 +342,7 @@ export default function Space() {
     if (!isDragging || e.touches.length !== 1) return;
 
     const touch = e.touches[0];
-    
-    // Validate coordinates to ensure they're still valid after any orientation changes
+
     const validatedCoords = validateTouchCoordinates(touch as Touch);
     if (!validatedCoords) {
       console.log('Invalid touch coordinates during move, resetting drag');
@@ -369,7 +361,7 @@ export default function Space() {
     setIsDragging(false);
   };
 
-  // ENHANCED: Global mouse and touch handlers with orientation change support
+  // Global mouse and touch handlers
   React.useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
@@ -387,8 +379,7 @@ export default function Space() {
 
     const handleGlobalTouchMove = (e: TouchEvent) => {
       if (!isDragging || e.touches.length !== 1) return;
-      
-      // Validate container still exists after potential orientation change
+
       if (!containerRef.current) {
         setIsDragging(false);
         return;
@@ -406,9 +397,8 @@ export default function Space() {
       setIsDragging(false);
     };
 
-    // Handle orientation change during active touch gesture
     const handleOrientationChangeDuringTouch = () => {
-      console.log('Orientation change during touch, resetting drag state');
+      // console.log('Orientation change during touch, resetting drag state');
       setIsDragging(false);
     };
 
@@ -431,6 +421,7 @@ export default function Space() {
     };
   }, [isDragging, dragStart, panStart, panX, panY]);
 
+  // Move snippet position
   const moveSnippet = async (id: string, deltaX: number, deltaY: number) => {
     const snippet = snippets.find(s => s.id === id);
     if (!snippet) return;
@@ -438,7 +429,6 @@ export default function Space() {
     const newX = Math.round(snippet.x + deltaX);
     const newY = Math.round(snippet.y + deltaY);
 
-    // Apply optimistic update
     setSnippets(prev => prev.map(s => {
       if (s.id === id) {
         return { ...s, x: newX, y: newY, updatedAt: new Date() };
@@ -453,14 +443,17 @@ export default function Space() {
         body: JSON.stringify({ x: newX, y: newY })
       });
 
-      if (sendSnippetMove && isJoined) {
+      if (sendSnippetMove && isJoined&& (userRole === 'EDITOR' || userRole === 'OWNER' || userRole === 'ADMIN' || userRole === 'VIEWER')) {
         console.log('Broadcasting snippet movement via WebSocket...');
         await sendSnippetMove({
           snippetId: id,
+          // userRole: userRole,
           x: newX,
           y: newY
         });
       }
+    
+
     } catch (error) {
       console.error("Failed to update snippet position:", error);
       if (snippet) {
@@ -502,12 +495,12 @@ export default function Space() {
 
         setSnippets(prev => {
           const exists = prev.some(s => s.id === snippetId);
-          
+
           if (exists && isFromCurrentUser) {
             console.log('Skipping duplicate creation from current user');
             return prev;
           }
-          
+
           if (!exists) {
             const newSnippet = {
               id: snippetId,
@@ -524,18 +517,16 @@ export default function Space() {
               updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
             };
 
-            if (!isFromCurrentUser) {
-              console.log('Sending HTTP edit request for newly created snippet...');
-              try{
-                fetchSpaceData()
-              } catch(e){
-                console.log("chud gye guru")
-              }
+            console.log('Sending HTTP edit request for newly created snippet...');
+            try {
+              fetchSpaceData()
+            } catch (e) {
+              console.log("Failed to fetch space data after creation")
             }
 
             return [...prev, newSnippet];
           }
-          
+
           return prev;
         });
 
@@ -549,7 +540,7 @@ export default function Space() {
         const targetId = lastMessage.payload.snippetId || lastMessage.payload.id;
         if (!targetId) return;
 
-        const shouldSkipUpdate = isFromCurrentUser && 
+        const shouldSkipUpdate = isFromCurrentUser &&
           typeof lastMessage.timestamp === 'number' &&
           (Date.now() - lastMessage.timestamp < 1000);
 
@@ -589,38 +580,36 @@ export default function Space() {
     }
   }, [lastMessage, spaceId, currentUser?.id]);
 
+  // Navigate to specific snippet
   const navigateToBox = (snippet: Snippet) => {
     if (!containerRef.current || !canvasRef.current) return;
-    
+
     const container = containerRef.current;
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
-    
+
     const containerCenterX = containerWidth / 2;
     const containerCenterY = containerHeight / 2;
-    
+
     const targetX = -snippet.x * scale + containerCenterX;
     const targetY = -snippet.y * scale + containerCenterY;
-    
+
     animate(panX, targetX, {
       type: 'spring',
       duration: 0.8,
       bounce: 0.2,
       onUpdate: (value) => setPanX(value),
     });
-    
+
     animate(panY, targetY, {
       type: 'spring',
       duration: 0.8,
       bounce: 0.2,
       onUpdate: (value) => setPanY(value),
     });
-
-    // Close sidebar after navigation if needed
-    // Removed automatic closing - only closes via toggle button
   };
 
-  // Fetch space data
+  // Fetch space data from API
   const fetchSpaceData = async () => {
     try {
       setIsLoading(true);
@@ -634,7 +623,7 @@ export default function Space() {
         setSpaceData(space);
         setUserRole(spaceResponse.userRole);
         console.log("The user role is " + spaceResponse.userRole);
-        
+
         if (space.snippets) {
           setSnippets(space.snippets);
         }
@@ -656,20 +645,20 @@ export default function Space() {
     }
   };
 
-  // Add the handleToggleSpaceVisibility function
+  // Toggle space visibility
   const handleToggleSpaceVisibility = async (isPublic: boolean) => {
     try {
       console.log(`Toggling space visibility to ${isPublic ? 'public' : 'private'}...`);
-      
+
       await apiRequest(`/space/${spaceId}/visibility`, {
         method: 'PUT',
         body: JSON.stringify({
           isPublic: isPublic
         })
       });
-      
+
       setSpaceData(prevData => prevData ? { ...prevData, isPublic } : prevData);
-      
+
       console.log(`Space visibility updated to ${isPublic ? 'public' : 'private'}`);
     } catch (error) {
       console.error('Error updating space visibility:', error);
@@ -696,7 +685,7 @@ export default function Space() {
     }
   }, [tagColorMenu.show]);
 
-  // Zoom handlers
+  // Handle zoom via mouse wheel
   const handleWheel = (e: React.WheelEvent) => {
     const target = e.target as HTMLElement;
     const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
@@ -710,6 +699,7 @@ export default function Space() {
     setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
   };
 
+  // Zoom control functions
   const zoom = (delta: number) => {
     setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
   };
@@ -764,7 +754,7 @@ export default function Space() {
     cancelEdit();
   };
 
-  // Tag color management
+  // Handle tag right-click for color menu
   const handleTagRightClick = (e: React.MouseEvent, tag: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -778,7 +768,7 @@ export default function Space() {
 
   const [lastCreationTime, setLastCreationTime] = useState(0);
 
-  // Create snippet
+  // Create new snippet
   const addSnippet = async () => {
     if (Date.now() - lastCreationTime < 100) {
       console.log('Too rapid snippet creation');
@@ -787,10 +777,10 @@ export default function Space() {
     setLastCreationTime(Date.now());
 
     const newSnippetData = {
-      title: `New Snippet ${Date.now()}`,
+      title: `Box`,
       description: "Click to edit this snippet",
       code: "// Add your code here",
-      tags: ["new"],
+      tags: [],
       color: "bg-blue-400",
       x: Math.round(Math.random() * 400 + 200),
       y: Math.round(Math.random() * 400 + 200),
@@ -834,7 +824,7 @@ export default function Space() {
         return [...prev, createdSnippet.id];
       });
 
-      if (sendSnippetCreate && isJoined) {
+      if (sendSnippetCreate && (userRole === 'EDITOR' || userRole === 'OWNER' || userRole === 'ADMIN')) {
         console.log('Broadcasting snippet creation via WebSocket...');
         await sendSnippetCreate({
           title: createdSnippet.title,
@@ -852,7 +842,7 @@ export default function Space() {
     }
   };
 
-  // Update snippet
+  // Update existing snippet
   const updateSnippet = async (id: string, updates: Partial<Snippet>) => {
     const processedUpdates = {
       ...updates,
@@ -866,7 +856,6 @@ export default function Space() {
       return;
     }
 
-    // Apply optimistic update
     setSnippets(prev => prev.map(s => {
       if (s.id === id) {
         return { ...s, ...processedUpdates, updatedAt: new Date() };
@@ -938,13 +927,6 @@ export default function Space() {
     }
   };
 
-  // Handle file changes for snippets
-  const handleSnippetFilesChanged = (id: string, files: File[]) => {
-    setSnippets(prev => prev.map(snippet =>
-      snippet.id === id ? { ...snippet, files } : snippet
-    ));
-  };
-
   // Reorder snippets
   const reorderSnippets = async (startIndex: number, endIndex: number) => {
     setSnippetOrder(prev => {
@@ -969,7 +951,7 @@ export default function Space() {
     }
   };
 
-  // Tag management
+  // Tag management functions
   const getAllTags = () => {
     const tagSet = new Set<string>();
     snippets.forEach(snippet => {
@@ -995,16 +977,9 @@ export default function Space() {
     setSearchQuery("");
   };
 
-  const handleTagKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addTag();
-    }
-  };
-
   const changeTagColor = async (tag: string, color: string) => {
-    setSnippets(prev => prev.map(snippet => 
-      snippet.tags.includes(tag) 
+    setSnippets(prev => prev.map(snippet =>
+      snippet.tags.includes(tag)
         ? { ...snippet, color: color, updatedAt: new Date() }
         : snippet
     ));
@@ -1022,7 +997,7 @@ export default function Space() {
     });
   };
 
-  // Filter and sort snippets
+  // Filtering and search functions
   const matchesSearch = (snippet: Snippet, query: string) => {
     if (!query.trim()) return true;
     const searchTerm = query.toLowerCase().trim();
@@ -1036,19 +1011,9 @@ export default function Space() {
 
   const filteredSnippets = snippets.filter(snippet => {
     const matches = matchesSearch(snippet, searchQuery);
-    const tagMatch = tagFilters.size === 0 || 
-                    snippet.tags.some(tag => tagFilters.has(tag));
+    const tagMatch = tagFilters.size === 0 ||
+      snippet.tags.some(tag => tagFilters.has(tag));
     return matches && tagMatch;
-  });
-
-  // Sort snippets by order
-  const sortedSnippets = filteredSnippets.sort((a, b) => {
-    const aIndex = snippetOrder.indexOf(a.id);
-    const bIndex = snippetOrder.indexOf(b.id);
-    if (aIndex === -1 && bIndex === -1) return 0;
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    return aIndex - bIndex;
   });
 
   const getOrderedSnippets = () => {
@@ -1062,10 +1027,14 @@ export default function Space() {
     });
   };
 
-  // Get permissions and connection status
-  const canEdit = userPermissions?.allowed || 
-                 userPermissions?.isOwner || 
-                 spaceData?.ownerId === currentUser.id;
+  // Permission and connection status helpers
+  console.log(userPermissions)
+  const canEdit = userRole === 'OWNER' || 
+  userRole === 'EDITOR' || 
+  userRole === 'ADMIN' ||
+  userPermissions?.allowed ||
+  userPermissions?.isOwner ||
+  spaceData?.ownerId === currentUser.id;
 
   const connectionStatus = (() => {
     if (isJoined) return { status: 'Connected & Joined', color: isDarkMode ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800' };
@@ -1093,44 +1062,38 @@ export default function Space() {
   });
 
   return (
-    <div className={`h-screen transition-colors duration-300 ${
-      isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
-    }`} key={refreshKey}>
+    <div className={`h-screen transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
+      }`} key={refreshKey}>
       {/* Main Content */}
       <div className="flex flex-col h-full">
-        {/* Header with Sidebar Toggle */}
-        <div className={`border-b p-3 sm:p-4 transition-colors duration-300 ${
-          isDarkMode 
-            ? 'bg-gray-800 border-gray-700' 
+        {/* Header with Back Button and Controls */}
+        <div className={`border-b p-3 sm:p-4 transition-colors duration-300 ${isDarkMode
+            ? 'bg-gray-800 border-gray-700'
             : 'bg-white border-gray-200'
-        }`}>
+          }`}>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              {/* Sidebar Toggle Button */}
+              {/* Back Button */}
               <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className={`p-2 rounded-md transition-colors duration-300 ${
-                  isDarkMode
+                onClick={() => navigate('/dashboard')}
+                className={`p-2 rounded-md transition-colors duration-300 ${isDarkMode
                     ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                }`}
-                title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+                  }`}
+                title="Back to dashboard"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                    d={isSidebarOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
               </button>
 
-              <h1 className={`text-lg font-semibold truncate transition-colors duration-300 hidden sm:block ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
+              <h1 className={`text-lg font-semibold truncate transition-colors duration-300 hidden sm:block ${isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
                 {spaceData?.name || 'Code Space'}
               </h1>
               {isLoading && (
-                <span className={`text-sm transition-colors duration-300 hidden sm:inline ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                }`}>
+                <span className={`text-sm transition-colors duration-300 hidden ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
                   Loading...
                 </span>
               )}
@@ -1140,11 +1103,10 @@ export default function Space() {
               {/* Dark Mode Toggle */}
               <button
                 onClick={toggleDarkMode}
-                className={`p-2 rounded-md transition-colors duration-300 ${
-                  isDarkMode
+                className={`p-2 rounded-md transition-colors duration-300 ${isDarkMode
                     ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                  }`}
                 title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {isDarkMode ? (
@@ -1158,35 +1120,31 @@ export default function Space() {
                 )}
               </button>
 
-              {/* Zoom controls - Visible on all devices */}
-              <div className={`flex items-center gap-1 rounded-md p-1 transition-colors duration-300 ${
-                isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
-              }`}>
-                <button 
-                  onClick={() => zoom(-0.2)} 
-                  className={`p-1 rounded transition-colors duration-300 ${
-                    isDarkMode 
-                      ? 'text-gray-300 hover:text-white hover:bg-gray-600' 
+              {/* Zoom Controls */}
+              <div className={`flex items-center gap-1 rounded-md p-1 transition-colors duration-300 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+                }`}>
+                <button
+                  onClick={() => zoom(-0.2)}
+                  className={`p-1 rounded transition-colors duration-300 ${isDarkMode
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-600'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-white'
-                  }`}
+                    }`}
                   title="Zoom out"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
                   </svg>
                 </button>
-                <span className={`px-2 text-xs sm:text-sm min-w-[2.5rem] sm:min-w-[3rem] text-center transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                }`}>
+                <span className={`px-2 text-xs sm:text-sm min-w-[2.5rem] sm:min-w-[3rem] text-center transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
                   {Math.round(scale * 100)}%
                 </span>
-                <button 
-                  onClick={() => zoom(0.2)} 
-                  className={`p-1 rounded transition-colors duration-300 ${
-                    isDarkMode 
-                      ? 'text-gray-300 hover:text-white hover:bg-gray-600' 
+                <button
+                  onClick={() => zoom(0.2)}
+                  className={`p-1 rounded transition-colors duration-300 ${isDarkMode
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-600'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-white'
-                  }`}
+                    }`}
                   title="Zoom in"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1195,29 +1153,27 @@ export default function Space() {
                 </button>
               </div>
 
-              {/* WebSocket Status - Hidden on small screens */}
+              {/* WebSocket Status */}
               <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${connectionStatus.color}`}>
                 <span className="hidden sm:inline">WS: </span>
                 {connectionStatus.status}
               </div>
 
-              {/* User Role - Hidden on small screens */}
+              {/* User Role */}
               {userPermissions && (
-                <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${
-                  isDarkMode ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'
-                }`}>
+                <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${isDarkMode ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'
+                  }`}>
                   {userRole || "VIEWER"}
                 </div>
               )}
 
-              {/* Action buttons */}
+              {/* Action Buttons */}
               <button
                 onClick={addSnippet}
-                className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 disabled:opacity-50 ${
-                  isDarkMode
+                className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
                     ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
                     : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
-                }`}
+                  }`}
                 disabled={!canEdit}
               >
                 <span className="hidden sm:inline">Add Snippet</span>
@@ -1226,14 +1182,41 @@ export default function Space() {
 
               <button
                 onClick={fetchSpaceData}
-                className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 ${
-                  isDarkMode
+                className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 ${isDarkMode
                     ? 'bg-green-600 text-white hover:bg-green-700'
                     : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
+                  }`}
               >
                 <span className="hidden sm:inline">Refresh</span>
                 <span className="sm:hidden">↻</span>
+              </button>
+
+              {/* Sidebar Toggle */}
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className={`p-2 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105 ${isDarkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                  }`}
+                title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+              >
+                <svg
+                  className="h-5 w-5 transition-transform duration-300 ease-in-out"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  style={{
+                    transform: isSidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                  }}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={isSidebarOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
+                    className="transition-all duration-300 ease-in-out"
+                  />
+                </svg>
               </button>
             </div>
           </div>
@@ -1242,9 +1225,8 @@ export default function Space() {
         {/* Canvas with Infinite Grid */}
         <div
           ref={containerRef}
-          className={`flex-1 overflow-hidden relative transition-colors duration-300 ${
-            isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
-          }`}
+          className={`flex-1 overflow-hidden relative transition-colors duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
+            }`}
           onWheel={handleWheel}
         >
           <motion.div
@@ -1262,7 +1244,7 @@ export default function Space() {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            {/* Infinite Grid background */}
+            {/* Grid Background */}
             <div
               className="absolute inset-0 opacity-20"
               style={{
@@ -1275,7 +1257,7 @@ export default function Space() {
               }}
             />
 
-            {/* Render snippets as draggable boxes */}
+            {/* Render Snippets */}
             {filteredSnippets.map(snippet => (
               <Box
                 key={snippet.id}
@@ -1284,26 +1266,24 @@ export default function Space() {
                 onUpdatePosition={moveSnippet}
                 onStartEditing={() => startEditing(snippet)}
                 onTagRightClick={handleTagRightClick}
-                onFilesChanged={handleSnippetFilesChanged}
+                onCodeUpdate={handleCodeUpdate}
                 isDarkMode={isDarkMode}
               />
             ))}
 
-            {/* Empty state */}
+            {/* Empty State */}
             {filteredSnippets.length === 0 && (
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                <div className={`mb-4 text-lg transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                }`}>
+                <div className={`mb-4 text-lg transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
                   No snippets found
                 </div>
                 <button
                   onClick={addSnippet}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors duration-300 disabled:opacity-50 ${
-                    isDarkMode
+                  className={`px-6 py-3 rounded-lg font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
                       ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
                       : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
-                  }`}
+                    }`}
                   disabled={!userPermissions?.allowed}
                 >
                   Create Your First Snippet
@@ -1314,30 +1294,28 @@ export default function Space() {
         </div>
       </div>
 
-      {/* Sidebar - NO BLACK OVERLAY */}
+      {/* Sidebar */}
       {isSidebarOpen && (
-        <div className="fixed top-0 right-0 h-full w-80 z-50">
-          <Sidebar
-            snippets={getOrderedSnippets()}
-            filteredSnippets={filteredSnippets}
-            snippetOrder={snippetOrder}
-            searchQuery={searchQuery}
-            tagFilters={tagFilters}
-            getAllTags={getAllTags}
-            onSearchChange={setSearchQuery}
-            onToggleTagFilter={toggleTagFilter}
-            onClearAllFilters={clearAllFilters}
-            onReorderSnippets={reorderSnippets}
-            onUpdateSnippet={updateSnippet}
-            onDeleteSnippet={deleteSnippet}
-            onNavigateToBox={navigateToBox} 
-            spaceId={spaceId} 
-            userRole={userRole || "VIEWER"}   
-            isSpacePublic={spaceData?.isPublic || false}
-            onToggleSpaceVisibility={handleToggleSpaceVisibility}
-            isDarkMode={isDarkMode}
-          />
-        </div>
+        <Sidebar
+          snippets={getOrderedSnippets()}
+          filteredSnippets={filteredSnippets}
+          snippetOrder={snippetOrder}
+          searchQuery={searchQuery}
+          tagFilters={tagFilters}
+          getAllTags={getAllTags}
+          onSearchChange={setSearchQuery}
+          onToggleTagFilter={toggleTagFilter}
+          onClearAllFilters={clearAllFilters}
+          onReorderSnippets={reorderSnippets}
+          onUpdateSnippet={updateSnippet}
+          onDeleteSnippet={deleteSnippet}
+          onNavigateToBox={navigateToBox}
+          spaceId={spaceId}
+          userRole={userRole || "VIEWER"}
+          isSpacePublic={spaceData?.isPublic || false}
+          onToggleSpaceVisibility={handleToggleSpaceVisibility}
+          isDarkMode={isDarkMode}
+        />
       )}
 
       {/* Edit Modal */}
@@ -1376,16 +1354,14 @@ export default function Space() {
       {/* Tag Color Menu */}
       {tagColorMenu.show && (
         <div
-          className={`fixed rounded-lg shadow-lg border p-2 z-50 transition-colors duration-300 ${
-            isDarkMode 
-              ? 'bg-gray-800 border-gray-600' 
+          className={`fixed rounded-lg shadow-lg border p-2 z-50 transition-colors duration-300 ${isDarkMode
+              ? 'bg-gray-800 border-gray-600'
               : 'bg-white border-gray-200'
-          }`}
+            }`}
           style={{ left: tagColorMenu.x, top: tagColorMenu.y }}
         >
-          <div className={`text-sm p-2 transition-colors duration-300 ${
-            isDarkMode ? 'text-gray-300' : 'text-gray-600'
-          }`}>
+          <div className={`text-sm p-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>
             Change color for "{tagColorMenu.tag}"
           </div>
           <div className="grid grid-cols-4 gap-2 mt-2">

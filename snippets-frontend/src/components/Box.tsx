@@ -13,7 +13,6 @@ interface Snippet {
   ownerId: string;
   createdAt: Date;
   updatedAt: Date;
-  files?: File[];
   totalViews?: number;
 }
 
@@ -23,7 +22,7 @@ interface BoxProps {
   onUpdatePosition: (id: string, deltaX: number, deltaY: number) => void;
   onStartEditing: (box: Snippet) => void;
   onTagRightClick: (e: React.MouseEvent, tag: string) => void;
-  onFilesChanged: (id: string, files: File[]) => void;
+  onCodeUpdate: (id: string, code: string, language: string, fileName: string) => void; // New prop for direct updates
   isDarkMode: boolean;
 }
 
@@ -33,14 +32,12 @@ const Box: React.FC<BoxProps> = ({
   onUpdatePosition, 
   onStartEditing,
   onTagRightClick,
-  onFilesChanged,
+  onCodeUpdate, // Use this instead of onCodeFileDropped
   isDarkMode
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [showFiles, setShowFiles] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Manual drag state
   const dragState = useRef({
@@ -51,16 +48,171 @@ const Box: React.FC<BoxProps> = ({
     initialBoxY: 0
   });
 
-  // Manual drag implementation using mouse events
+  // Code file detection
+  const isCodeFile = (file: File) => {
+    const codeExtensions = [
+      '.js', '.jsx', '.ts', '.tsx', // JavaScript/TypeScript
+      '.py', '.pyw', // Python
+      '.java', '.class', // Java
+      '.c', '.h', // C
+      '.cpp', '.cc', '.cxx', '.hpp', '.hxx', // C++
+      '.cs', // C#
+      '.php', // PHP
+      '.rb', // Ruby
+      '.go', // Go
+      '.rs', // Rust
+      '.swift', // Swift
+      '.kt', '.kts', // Kotlin
+      '.scala', // Scala
+      '.r', '.R', // R
+      '.m', // MATLAB/Objective-C
+      '.pl', '.pm', // Perl
+      '.sh', '.bash', // Shell
+      '.sql', // SQL
+      '.html', '.htm', '.xml', // Markup
+      '.css', '.scss', '.sass', '.less', // Stylesheets
+      '.json', '.yaml', '.yml', '.toml', // Data formats
+      '.md', '.markdown', // Markdown
+      '.vim', '.lua', '.asm' // Other languages
+    ];
+    
+    const fileName = file.name.toLowerCase();
+    return codeExtensions.some(ext => fileName.endsWith(ext));
+  };
+
+  // Language detection from file extensions
+  const detectLanguageFromExtension = (fileName: string) => {
+    const extensionMap: Record<string, string> = {
+      '.js': 'javascript',
+      '.jsx': 'javascript',
+      '.ts': 'typescript',
+      '.tsx': 'typescript',
+      '.py': 'python',
+      '.pyw': 'python',
+      '.java': 'java',
+      '.c': 'c',
+      '.h': 'c',
+      '.cpp': 'cpp',
+      '.cc': 'cpp',
+      '.cxx': 'cpp',
+      '.hpp': 'cpp',
+      '.hxx': 'cpp',
+      '.cs': 'csharp',
+      '.php': 'php',
+      '.rb': 'ruby',
+      '.go': 'go',
+      '.rs': 'rust',
+      '.swift': 'swift',
+      '.kt': 'kotlin',
+      '.kts': 'kotlin',
+      '.scala': 'scala',
+      '.r': 'r',
+      '.R': 'r',
+      '.m': 'matlab',
+      '.pl': 'perl',
+      '.pm': 'perl',
+      '.sh': 'bash',
+      '.bash': 'bash',
+      '.sql': 'sql',
+      '.html': 'html',
+      '.htm': 'html',
+      '.xml': 'xml',
+      '.css': 'css',
+      '.scss': 'scss',
+      '.sass': 'sass',
+      '.less': 'less',
+      '.json': 'json',
+      '.yaml': 'yaml',
+      '.yml': 'yaml',
+      '.toml': 'toml',
+      '.md': 'markdown',
+      '.markdown': 'markdown',
+      '.vim': 'vim',
+      '.lua': 'lua',
+      '.asm': 'assembly'
+    };
+    
+    const extension = fileName.toLowerCase().match(/\.[^.]*$/)?.[0];
+    return extension && extensionMap[extension] ? extensionMap[extension] : 'text';
+  };
+
+  // Read file content using FileReader API
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (event) => {
+        resolve(event.target?.result as string);
+      };
+      
+      reader.onerror = (error) => {
+        reject(error);
+      };
+      
+      reader.readAsText(file);
+    });
+  };
+
+  // Drag and drop handlers for direct file processing
+  const handleDragOver = (e: React.DragEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  // Only handle if we have files being dragged
+  if (e.dataTransfer.types.includes('Files')) {
+    const files = Array.from(e.dataTransfer.files || []);
+    const hasCodeFiles = files.some(isCodeFile);
+    
+    setIsDragOver(hasCodeFiles);
+    e.dataTransfer.dropEffect = hasCodeFiles ? 'copy' : 'none';
+  }
+};
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  setIsDragOver(false);
+
+  // Ensure we're handling file drops, not element dragging
+  if (!e.dataTransfer.types.includes('Files')) {
+    return;
+  }
+
+  const droppedFiles = Array.from(e.dataTransfer.files);
+  const codeFiles = droppedFiles.filter(isCodeFile);
+  
+  if (codeFiles.length === 0) {
+    alert('Please drop only code files (.js, .py, .java, .cpp, etc.)');
+    return;
+  }
+
+  const file = codeFiles[0];
+  
+  try {
+    const content = await readFileContent(file);
+    const language = detectLanguageFromExtension(file.name);
+    
+    onCodeUpdate(box.id, content, language, file.name);
+    
+  } catch (error) {
+    console.error('Error reading file:', error);
+    alert('Error reading file content');
+  }
+};
+
+  // Mouse drag handlers (keeping existing functionality)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Prevent canvas pan and text selection
     e.preventDefault();
     e.stopPropagation();
 
-    // Only start drag on left mouse button
     if (e.button !== 0) return;
 
-    // Store initial drag state
     dragState.current = {
       isDragging: true,
       startX: e.clientX,
@@ -70,46 +222,33 @@ const Box: React.FC<BoxProps> = ({
     };
 
     setIsDragging(true);
-
-    // Add global mouse event listeners
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    
-    // Prevent text selection during drag
     document.body.style.userSelect = 'none';
   }, [box.x, box.y]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragState.current.isDragging) return;
 
-    // Calculate mouse movement delta
     const deltaX = e.clientX - dragState.current.startX;
     const deltaY = e.clientY - dragState.current.startY;
-
-    // Apply scale factor to convert screen movement to canvas movement
     const scaledDeltaX = deltaX / scale;
     const scaledDeltaY = deltaY / scale;
 
-    // Call update with the scaled delta values
     onUpdatePosition(box.id, scaledDeltaX, scaledDeltaY);
   }, [box.id, scale, onUpdatePosition]);
 
   const handleMouseUp = useCallback(() => {
     if (!dragState.current.isDragging) return;
 
-    // Reset drag state
     dragState.current.isDragging = false;
     setIsDragging(false);
-
-    // Remove global event listeners
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
-    
-    // Restore text selection
     document.body.style.userSelect = '';
   }, [handleMouseMove]);
 
-  // Clean up event listeners on unmount
+  // Cleanup effect
   React.useEffect(() => {
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
@@ -118,97 +257,6 @@ const Box: React.FC<BoxProps> = ({
     };
   }, [handleMouseMove, handleMouseUp]);
 
-  // File drag and drop handlers
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    if (droppedFiles.length > 0) {
-      const existingFiles = box.files || [];
-      const newFiles = [...existingFiles, ...droppedFiles];
-      onFilesChanged(box.id, newFiles);
-    }
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
-    if (selectedFiles.length > 0) {
-      const existingFiles = box.files || [];
-      const newFiles = [...existingFiles, ...selectedFiles];
-      onFilesChanged(box.id, newFiles);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleRemoveFile = (fileIndex: number) => {
-    const existingFiles = box.files || [];
-    const newFiles = existingFiles.filter((_, index) => index !== fileIndex);
-    onFilesChanged(box.id, newFiles);
-  };
-
-  const handleDownloadFile = async (file: File) => {
-    try {
-      if (!(file instanceof File)) {
-        console.error('Invalid file object:', file);
-        return;
-      }
-
-      const blob = new Blob([file], { type: file.type || 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name || 'download';
-      a.style.display = 'none';
-      
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 100);
-      
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      
-      try {
-        const url = URL.createObjectURL(file);
-        window.open(url, '_blank');
-        setTimeout(() => {
-          URL.revokeObjectURL(url);
-        }, 1000);
-      } catch (fallbackError) {
-        console.error('Fallback download also failed:', fallbackError);
-        alert('Unable to download file. Please try again.');
-      }
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   return (
     <div
       className={`absolute w-48 h-40 rounded-lg shadow-lg flex flex-col cursor-pointer select-none transition-all duration-300 ease-out ${
@@ -216,23 +264,18 @@ const Box: React.FC<BoxProps> = ({
       } ${
         isDragOver ? 'ring-2 ring-white ring-opacity-50' : ''
       } ${
-        isDragging ? 'z-50 shadow-2xl' : isHovered ? 'shadow-2xl' : 'hover:shadow-xl'
-      } ${
-        isDragging ? 'scale-110 rotate-3' : isHovered ? 'scale-105 -rotate-1' : 'hover:scale-105 hover:-rotate-1'
+        isDragging ? 'z-50 shadow-2xl scale-110 rotate-3' : isHovered ? 'shadow-2xl scale-105 -rotate-1' : 'hover:shadow-xl hover:scale-105 hover:-rotate-1'
       }`}
       
       style={{ 
         left: box.x, 
         top: box.y,
-        // Critical: Set transform origin to center for better scaling
         transformOrigin: 'center center',
-        // Improve rendering performance
         willChange: isDragging || isHovered ? 'transform' : 'auto',
-        // Ensure proper z-index during drag
-        zIndex: isDragging ? 1000 : isHovered ? 10 : 1
+        zIndex: isDragging ? 1000 : isHovered ? 10 : 1,
+        touchAction: 'none'
       }}
       
-      // Manual drag event handlers
       onMouseDown={handleMouseDown}
       onDoubleClick={() => onStartEditing(box)}
       onMouseEnter={() => setIsHovered(true)}
@@ -243,14 +286,6 @@ const Box: React.FC<BoxProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        onChange={handleFileInput}
-        className="hidden"
-      />
-
       <div className="p-3 flex-1 flex flex-col relative">
         <div className={`font-semibold text-center mb-2 truncate transition-all duration-300 ${
           isDarkMode ? 'text-white' : 'text-white'
@@ -260,7 +295,7 @@ const Box: React.FC<BoxProps> = ({
           {box.title}
         </div>
         
-        {box.description && !showFiles && (
+        {box.description && (
           <div className={`text-xs flex-1 overflow-hidden transition-all duration-300 ${
             isDarkMode ? 'text-white/90' : 'text-white/90'
           } ${
@@ -269,65 +304,9 @@ const Box: React.FC<BoxProps> = ({
             <div className="line-clamp-3">{box.description}</div>
           </div>
         )}
-
-        {/* Files section */}
-        {showFiles && box.files && box.files.length > 0 && (
-          <div className={`text-xs flex-1 overflow-y-auto transition-all duration-300 ${
-            isDarkMode ? 'text-white/90' : 'text-white/90'
-          }`}>
-            <div className="space-y-1 max-h-20">
-              {box.files.map((file, index) => (
-                <div key={`${file.name}-${index}`} className={`flex items-center justify-between rounded px-2 py-1 transition-all duration-200 hover:scale-105 ${
-                  isDarkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-white/10 hover:bg-white/20'
-                }`}>
-                  <div className="flex-1 truncate">
-                    <div className="truncate font-medium" title={file.name}>
-                      {file.name}
-                    </div>
-                    <div className={`transition-colors duration-300 ${
-                      isDarkMode ? 'text-white/70' : 'text-white/70'
-                    }`}>
-                      {formatFileSize(file.size)}
-                    </div>
-                  </div>
-                  <div className="flex gap-1 ml-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadFile(file);
-                      }}
-                      className={`text-xs px-1 py-0.5 rounded transition-all duration-200 hover:scale-110 ${
-                        isDarkMode 
-                          ? 'text-white/70 hover:text-white hover:bg-white/10' 
-                          : 'text-white/70 hover:text-white hover:bg-white/10'
-                      }`}
-                      title="Download"
-                    >
-                      ↓
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveFile(index);
-                      }}
-                      className={`text-xs px-1 py-0.5 rounded transition-all duration-200 hover:scale-110 hover:text-red-300 ${
-                        isDarkMode 
-                          ? 'text-white/70 hover:text-white hover:bg-white/10' 
-                          : 'text-white/70 hover:text-white hover:bg-white/10'
-                      }`}
-                      title="Remove"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
         
         {/* Tags section */}
-        {box.tags.length > 0 && !showFiles && (
+        {box.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {box.tags.slice(0, 3).map(tag => (
               <span
@@ -362,44 +341,6 @@ const Box: React.FC<BoxProps> = ({
           </div>
         )}
 
-        {/* File controls */}
-        <div className="absolute top-1 right-1 flex gap-1">
-          {box.files && box.files.length > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowFiles(!showFiles);
-              }}
-              className={`text-white text-xs px-1.5 py-0.5 rounded transition-all duration-200 hover:scale-110 ${
-                isDarkMode 
-                  ? 'bg-white/20 hover:bg-white/30' 
-                  : 'bg-white/20 hover:bg-white/30'
-              } ${
-                isHovered ? 'bg-white/30 scale-105' : ''
-              }`}
-              title={showFiles ? "Hide files" : "Show files"}
-            >
-              📁 {box.files.length}
-            </button>
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              fileInputRef.current?.click();
-            }}
-            className={`text-white text-xs px-1.5 py-0.5 rounded transition-all duration-200 hover:scale-110 ${
-              isDarkMode 
-                ? 'bg-white/20 hover:bg-white/30' 
-                : 'bg-white/20 hover:bg-white/30'
-            } ${
-              isHovered ? 'bg-white/30 scale-105' : ''
-            }`}
-            title="Add files"
-          >
-            +
-          </button>
-        </div>
-
         {/* Drop zone overlay */}
         {isDragOver && (
           <div className={`absolute inset-0 border-2 border-dashed rounded-lg flex items-center justify-center backdrop-blur-sm transition-all duration-300 ${
@@ -412,37 +353,21 @@ const Box: React.FC<BoxProps> = ({
                 ? 'text-white bg-black/20' 
                 : 'text-white bg-black/20'
             }`}>
-              Drop files here
+              Drop code file to replace
             </div>
           </div>
         )}
 
-        {/* Enhanced drag indicator */}
+        {/* Drag indicator */}
         {isDragging && (
           <div className="absolute -top-2 -left-2 w-3 h-3 bg-white rounded-full shadow-lg animate-pulse ring-2 ring-blue-400" />
         )}
 
-        {/* Hover glow effect */}
+        {/* Hover effect */}
         {isHovered && !isDragging && (
           <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-400/20 to-purple-400/20 animate-pulse pointer-events-none" />
         )}
       </div>
-
-      {/* Enhanced hover effects with CSS custom properties */}
-      <style>{`
-        .text-shadow-lg {
-          text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-        }
-        
-        @keyframes gentle-float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-2px); }
-        }
-        
-        .hover\\:animate-float:hover {
-          animation: gentle-float 2s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };

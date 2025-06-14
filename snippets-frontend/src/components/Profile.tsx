@@ -28,7 +28,7 @@ interface Space {
 const ProfilePage: React.FC = () => {
   const { username } = useParams();
   const navigate = useNavigate();
-  
+
   // State management
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -56,9 +56,9 @@ const ProfilePage: React.FC = () => {
       // Fetch profile user by username
       const profileResponse = await apiRequest(`/user/profile/${username}`);
       setProfileUser(profileResponse.user);
-      setEditForm({ 
-        name: profileResponse.user.name, 
-        username: profileResponse.user.username 
+      setEditForm({
+        name: profileResponse.user.name,
+        username: profileResponse.user.username
       });
 
       // Fetch user's public spaces
@@ -76,9 +76,9 @@ const ProfilePage: React.FC = () => {
     setIsEditing(!isEditing);
     if (isEditing) {
       // Reset form when canceling
-      setEditForm({ 
-        name: profileUser?.name || '', 
-        username: profileUser?.username || '' 
+      setEditForm({
+        name: profileUser?.name || '',
+        username: profileUser?.username || ''
       });
     }
   };
@@ -89,7 +89,7 @@ const ProfilePage: React.FC = () => {
         method: 'POST',
         body: JSON.stringify(editForm)
       });
-      
+
       // Update local state
       setProfileUser(prev => prev ? { ...prev, ...editForm } : null);
       setIsEditing(false);
@@ -132,7 +132,7 @@ const ProfilePage: React.FC = () => {
             </svg>
           </div>
           <p className="text-xl font-light mb-6">{error}</p>
-          <button 
+          <button
             onClick={() => navigate('/dashboard')}
             className="px-8 py-3 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-xl hover:bg-white/20 transition-all duration-300 font-medium"
           >
@@ -144,24 +144,25 @@ const ProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black relative relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black relative overflow-hidden">
       {/* Floating Geometric Background */}
       <FloatingGeometry />
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-        {/* Back to Dashboard Button */}
+        {/* Back Button */}
         <div className="mb-8">
-          <button 
-            onClick={() => navigate('/dashboard')}
+          <button
+            onClick={() => navigate(-1)} // This navigates to the previous page in history
             className="inline-flex items-center px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-xl hover:bg-white/20 transition-all duration-300 font-medium group"
           >
             <svg className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Back to Dashboard
+            Back
           </button>
         </div>
-        
+
+
         {/* Profile Header */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 mb-8 shadow-2xl">
           <div className="flex flex-col lg:flex-row items-center gap-8">
@@ -172,7 +173,7 @@ const ProfilePage: React.FC = () => {
                 <span className="relative z-10">{profileUser?.name?.charAt(0)?.toUpperCase() || 'U'}</span>
               </div>
             </div>
-            
+
             {/* Profile Info */}
             <div className="flex-grow text-center lg:text-left">
               {isEditing ? (
@@ -192,13 +193,13 @@ const ProfilePage: React.FC = () => {
                     placeholder="Username"
                   />
                   <div className="flex flex-col sm:flex-row gap-4">
-                    <button 
+                    <button
                       onClick={handleSaveProfile}
                       className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                     >
                       Save Changes
                     </button>
-                    <button 
+                    <button
                       onClick={handleEditToggle}
                       className="px-8 py-3 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-xl hover:bg-white/20 transition-all duration-300 font-semibold"
                     >
@@ -214,7 +215,7 @@ const ProfilePage: React.FC = () => {
                     Joined {profileUser && formatDate(profileUser.createdAt)}
                   </p>
                   {isCurrentUser && (
-                    <button 
+                    <button
                       onClick={handleEditToggle}
                       className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-semibold"
                     >
@@ -236,9 +237,9 @@ const ProfilePage: React.FC = () => {
             <h2 className="text-3xl font-bold text-white tracking-tight">
               {isCurrentUser ? 'Your Public Spaces' : `${profileUser?.name}'s Public Spaces`}
             </h2>
-           
+
           </div>
-          
+
           <HorizontalScroll>
             {publicSpaces.length > 0 ? (
               publicSpaces.map((space) => (
@@ -300,7 +301,7 @@ const HorizontalScroll: React.FC<{ children: React.ReactNode }> = ({ children })
   return (
     <div className="relative">
       {showLeftArrow && (
-        <button 
+        <button
           className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 bg-white/10 backdrop-blur-sm hover:bg-white/20 border border-white/20 shadow-xl rounded-2xl w-12 h-12 flex items-center justify-center text-white hover:text-white transition-all duration-300"
           onClick={() => scroll('left')}
         >
@@ -309,8 +310,8 @@ const HorizontalScroll: React.FC<{ children: React.ReactNode }> = ({ children })
           </svg>
         </button>
       )}
-      
-      <div 
+
+      <div
         className="flex gap-6 overflow-x-auto scrollbar-hide py-4 scroll-smooth px-4"
         ref={scrollRef}
         onScroll={checkScrollability}
@@ -318,9 +319,9 @@ const HorizontalScroll: React.FC<{ children: React.ReactNode }> = ({ children })
       >
         {children}
       </div>
-      
+
       {showRightArrow && (
-        <button 
+        <button
           className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 bg-white/10 backdrop-blur-sm hover:bg-white/20 border border-white/20 shadow-xl rounded-2xl w-12 h-12 flex items-center justify-center text-white hover:text-white transition-all duration-300"
           onClick={() => scroll('right')}
         >
@@ -329,7 +330,7 @@ const HorizontalScroll: React.FC<{ children: React.ReactNode }> = ({ children })
           </svg>
         </button>
       )}
-      
+
       {/* Gradient fade effects */}
       <div className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-slate-900/80 to-transparent pointer-events-none transition-opacity z-10 ${showLeftArrow ? 'opacity-100' : 'opacity-0'}`} />
       <div className={`absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-slate-900/80 to-transparent pointer-events-none transition-opacity z-10 ${showRightArrow ? 'opacity-100' : 'opacity-0'}`} />
@@ -340,9 +341,9 @@ const HorizontalScroll: React.FC<{ children: React.ReactNode }> = ({ children })
 // Space Card Component
 const SpaceCard: React.FC<{ space: Space }> = ({ space }) => {
   const navigate = useNavigate();
-  
+
   return (
-    <div 
+    <div
       className="min-w-[320px] bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:bg-white/10 hover:border-white/20 hover:shadow-2xl hover:-translate-y-2 group"
       onClick={() => navigate(`/space/${space.id}`)}
     >
@@ -354,11 +355,11 @@ const SpaceCard: React.FC<{ space: Space }> = ({ space }) => {
           Public
         </span>
       </div>
-      
+
       <p className="text-white/70 text-sm mb-6 line-clamp-2 leading-relaxed">
         {space.description}
       </p>
-      
+
       <div className="flex justify-between items-center mb-6 text-sm text-white/60">
         <div className="flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -374,7 +375,7 @@ const SpaceCard: React.FC<{ space: Space }> = ({ space }) => {
           <span className="font-medium">{space._count?.snippets || 0}</span>
         </div>
       </div>
-      
+
       <div className="pt-4 border-t border-white/10">
         <p className="text-xs text-white/40 font-light">
           {new Date(space.createdAt).toLocaleDateString('en-US', {
@@ -412,7 +413,7 @@ const FloatingGeometry: React.FC = () => {
         .animate-drift-2 { animation: drift-2 18s ease-in-out infinite; }
         .animate-drift-3 { animation: drift-3 20s ease-in-out infinite; }
       `}</style>
-      
+
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Hexagon */}
         <div className="absolute top-[15%] right-[20%] animate-float-1 animate-drift-1 opacity-20">
@@ -426,7 +427,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Octagon */}
         <div className="absolute top-[60%] left-[10%] animate-float-2 animate-drift-2 opacity-15">
           <svg width="60" height="60" viewBox="0 0 100 100">
@@ -439,7 +440,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Pentagon */}
         <div className="absolute top-[30%] left-[15%] animate-float-3 opacity-25">
           <svg width="70" height="70" viewBox="0 0 100 100">
@@ -452,7 +453,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Star */}
         <div className="absolute bottom-[20%] right-[15%] animate-float-4 animate-drift-3 opacity-20">
           <svg width="75" height="75" viewBox="0 0 100 100">
@@ -465,7 +466,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Rounded Rectangle */}
         <div className="absolute bottom-[40%] left-[25%] animate-float-5 opacity-18">
           <svg width="85" height="50" viewBox="0 0 100 60">
@@ -478,7 +479,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Complex Diamond */}
         <div className="absolute top-[70%] right-[30%] animate-float-6 animate-drift-1 opacity-22">
           <svg width="65" height="65" viewBox="0 0 100 100">
@@ -491,7 +492,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Ellipse */}
         <div className="absolute top-[45%] right-[8%] animate-float-1 opacity-16">
           <svg width="90" height="45" viewBox="0 0 100 50">
@@ -504,7 +505,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Parallelogram */}
         <div className="absolute top-[25%] right-[45%] animate-float-3 animate-drift-2 opacity-14">
           <svg width="70" height="50" viewBox="0 0 100 60">
@@ -517,7 +518,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Trapezoid */}
         <div className="absolute bottom-[60%] left-[40%] animate-float-5 opacity-19">
           <svg width="65" height="50" viewBox="0 0 100 60">
@@ -530,7 +531,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Arrow */}
         <div className="absolute top-[80%] left-[60%] animate-float-2 animate-drift-3 opacity-17">
           <svg width="60" height="40" viewBox="0 0 100 60">
@@ -543,7 +544,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Cross/Plus */}
         <div className="absolute bottom-[15%] left-[50%] animate-float-4 opacity-21">
           <svg width="55" height="55" viewBox="0 0 100 100">
@@ -556,7 +557,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Crescent */}
         <div className="absolute top-[10%] left-[70%] animate-float-6 animate-drift-1 opacity-13">
           <svg width="50" height="50" viewBox="0 0 100 100">
@@ -569,7 +570,7 @@ const FloatingGeometry: React.FC = () => {
             </defs>
           </svg>
         </div>
-        
+
         {/* Complex Star */}
         <div className="absolute bottom-[70%] right-[5%] animate-float-1 animate-drift-2 opacity-23">
           <svg width="45" height="45" viewBox="0 0 100 100">

@@ -101,3 +101,4 @@ button:focus-visible {
     --color-success: #34d399;
   }
 }
+@plugin 'tailwind-scrollbar';

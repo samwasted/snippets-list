@@ -2,8 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Space from './components/Space';
-import Login from './components/Login';
-import Signup from './components/Signup';
 import WelcomePage from './components/WelcomePage';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -51,7 +49,7 @@ axios.interceptors.response.use(
     if (error.response?.status === 401) {
       // Token is invalid or expired
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      window.location.href = '/auth';
     }
     return Promise.reject(error);
   }
@@ -162,9 +160,9 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   // Show loading spinner while checking authentication
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-300 flex items-center justify-center">
         <div className="flex items-center space-x-2 text-green-600">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
           <span className="text-lg font-medium">Loading...</span>
         </div>
       </div>
@@ -187,9 +185,7 @@ function App() {
             {/* Public routes */}
             <Route path="/" element={<WelcomePage />} />
             <Route path="/welcome" element={<WelcomePage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/unified" element={<UnifiedAuth />} />
+            <Route path="/auth" element={<UnifiedAuth />} />
             <Route path="/space/:spaceId/analytics" element={<ProtectedRoute><SpaceAnalytics/></ProtectedRoute>} />
             {/* Protected routes */}
             <Route path="/dashboard" element={

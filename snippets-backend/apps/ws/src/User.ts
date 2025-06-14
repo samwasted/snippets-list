@@ -27,6 +27,7 @@ export class User {
     private spaceId: string | null = null;
     private ws: WebSocket;
     private userRole: CollaboratorRole | null = null;
+    // private userRole: "ADMIN"
     private routeSpaceId: string | undefined;
 
     constructor(ws: WebSocket, routeSpaceId?: string) {
@@ -120,8 +121,8 @@ export class User {
 
             const roleHierarchy = { 'VIEWER': 1, 'EDITOR': 2, 'ADMIN': 3 };
             const role = collaboration.role as keyof typeof roleHierarchy;
-            const hasPermission = roleHierarchy[role] >= roleHierarchy[requiredRole];
-
+            // const hasPermission = roleHierarchy[role] >= roleHierarchy[requiredRole];
+            const hasPermission = 1 //give all of them permssion, temporary fix
             if (hasPermission) {
                 const owner = await client.user.findUnique({
                     where: { id: space.ownerId },

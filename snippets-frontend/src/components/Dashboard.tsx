@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  Code2, Plus, Users, Eye, Calendar, User, Layout, LogOut, ArrowLeft, X, Trash2, ChevronLeft, ChevronRight, UserCog 
+  Code2, Plus, Users, Eye, Calendar, Layout, LogOut, ArrowLeft, X, Trash2, ChevronLeft, ChevronRight, UserCog 
 } from 'lucide-react';
 import { apiRequest } from './api';
 
@@ -195,8 +195,6 @@ const Dashboard = () => {
     isPublic: false
   });
 
-  // Scroll state for spaces carousel
-  const [scrollPosition, setScrollPosition] = useState(0);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
@@ -477,14 +475,14 @@ const Dashboard = () => {
                 title="Go back to home"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline font-medium">Back</span>
+                <span className="hidden sm:block font-medium">Back</span>
               </button>
               
               <div className="flex items-center space-x-3">
                 <div className="p-3 bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl shadow-lg">
                   <Code2 className="h-6 w-6 text-white" />
                 </div>
-                <h1 className="text-2xl font-bold text-white">SnippetSpace</h1>
+               <h1 className="hidden sm:block text-2xl font-bold text-white">SnippetSpace</h1>
               </div>
             </div>
 
