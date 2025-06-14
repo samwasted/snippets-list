@@ -5,7 +5,7 @@ export const SignupSchema = z.object({
   username: z.string().min(1, "Username is required").max(50, "Username too long"),
   name: z.string().min(1, "Name is required").optional(),
   password: z.string().min(5, "Password must be at least 5 characters"),
-  type: z.enum(["user", "admin"]).default("user")
+  role: z.enum(["user", "admin"]).default("user")
 })
 
 export const SigninSchema = z.object({
@@ -20,10 +20,16 @@ export const RefreshTokenSchema = z.object({
 // User Schemas
 export const UpdateUserProfileSchema = z.object({
   name: z.string().min(1, "Name cannot be empty").optional(),
-  username: z.string().min(1, "Username is required").max(50, "Username too long")
+  username: z.string().min(1, "Username is required").max(50, "Username too long"),
+  // role: z.enum(["user", "admin"]).default("user")
   // image: z.string().url("Invalid image URL").optional()
 })
-
+export const UpdateUserProfileSchemaAdmin = z.object({
+  name: z.string().min(1, "Name cannot be empty").optional(),
+  username: z.string().min(1, "Username is required").max(50, "Username too long"),
+  role: z.enum(["user", "admin"]).default("user")
+  // image: z.string().url("Invalid image URL").optional()
+})
 
 export const ChangePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),

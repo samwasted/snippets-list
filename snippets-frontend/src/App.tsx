@@ -8,6 +8,12 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SpaceAnalytics from './components/SpaceAnalytics';
 import UnifiedAuth from './components/unifiedAuth';
 import ProfilePage from './components/Profile';
+import AdminLayout from './admin/components/layout/AdminLayout';
+import AdminDashboard from './admin/pages/Dashboard';
+import Users from './admin/pages/Users';
+import Spaces from './admin/pages/Spaces';
+import Snippets from './admin/pages/Snippets';
+import Analytics from './admin/pages/Analytics';
 
 // Authentication context 
 const AuthContext = React.createContext<{
@@ -182,6 +188,13 @@ function App() {
       <Router>
         <div className="App">
           <Routes>
+            <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<Users />} />
+            <Route path="spaces" element={<Spaces />} />
+            <Route path="snippets" element={<Snippets />} />
+            <Route path="analytics" element={<Analytics />} />
+          </Route>
             {/* Public routes */}
             <Route path="/" element={<WelcomePage />} />
             <Route path="/welcome" element={<WelcomePage />} />

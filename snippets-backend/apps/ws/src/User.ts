@@ -290,7 +290,7 @@ export class User {
 
             this.userId = userId;
             this.spaceId = spaceId;
-            this.userRole = access.role;
+            this.userRole = "OWNER";
 
             RoomManager.getInstance().addUser(spaceId, this);
 

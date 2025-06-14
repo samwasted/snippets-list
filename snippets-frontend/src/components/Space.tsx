@@ -193,7 +193,7 @@ export default function Space() {
       setPanStart({ x: panX, y: panY });
 
       if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
+        // const rect = containerRef.current.getBoundingClientRect();
         // console.log('Viewport updated:', rect.width, 'x', rect.height);
         setRefreshKey(prev => prev + 1);
       }
@@ -207,7 +207,7 @@ export default function Space() {
 
       setTimeout(() => {
         if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
+          // const rect = containerRef.current.getBoundingClientRect();
           // console.log('Post-orientation viewport:', rect.width, 'x', rect.height);
         }
       }, 100);

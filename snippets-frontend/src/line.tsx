@@ -1,6 +1,4 @@
 //implement later
-
-
 import React from "react";
 
 interface LineProps {

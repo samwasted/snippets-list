@@ -9,15 +9,33 @@ import {
 import { hash, compare } from "../../scrypt";
 import client from "@repo/db"; 
 
-
 export const userRouter = Router();
 
+// Helper function to check if user is global admin
+const isGlobalAdmin = async (userId: string): Promise<boolean> => {
+    const user = await client.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+    });
+    return user?.role === 'ADMIN';
+};
 
-// User metadata (using User table fields directly since no UserMetadata table exists)
-userRouter.post("/metadata", userMiddleware, async (req, res) => { //validated
+// User metadata (updated with global admin access)
+userRouter.post("/metadata", userMiddleware, async (req, res) => {
     const userId = req.userId!;
-
-    const { username, name } = req.body; //only allow username and name to be changed
+    const { username, name, targetUserId } = req.body;
+    
+    // Determine which user to update
+    let userToUpdate = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can update other users' metadata" });
+            return;
+        }
+        userToUpdate = targetUserId;
+    }
 
     const updateData: { username?: string; name?: string } = {};
     if (username !== undefined) updateData.username = username;
@@ -25,12 +43,12 @@ userRouter.post("/metadata", userMiddleware, async (req, res) => { //validated
 
     if (Object.keys(updateData).length === 0) {
         res.status(400).json({ message: "No valid fields provided for update" });
-        return
+        return;
     }
 
     try {
         const user = await client.user.update({
-            where: { id: userId },
+            where: { id: userToUpdate },
             data: updateData,
             select: {
                 id: true,
@@ -47,12 +65,23 @@ userRouter.post("/metadata", userMiddleware, async (req, res) => { //validated
     }
 });
 
-
-userRouter.get("/metadata", userMiddleware, async (req, res) => { //validated
+userRouter.get("/metadata", userMiddleware, async (req, res) => {
     const userId = req.userId!;
+    const { targetUserId } = req.query;
+    
+    let userToQuery = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can access other users' metadata" });
+            return;
+        }
+        userToQuery = targetUserId as string;
+    }
     
     const user = await client.user.findUnique({
-        where: { id: userId },
+        where: { id: userToQuery },
         select: {
             id: true,
             username: true,
@@ -65,8 +94,16 @@ userRouter.get("/metadata", userMiddleware, async (req, res) => { //validated
     res.json({ metadata: user });
 });
 
-
-userRouter.get("/metadata/bulk", userMiddleware, async (req, res) => { //validated
+// Updated bulk metadata endpoint with admin access
+userRouter.get("/metadata/bulk", userMiddleware, async (req, res) => {
+    const userId = req.userId!;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (!isAdmin) {
+        res.status(403).json({ message: "Only global admins can access bulk user metadata" });
+        return;
+    }
+    
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
@@ -88,12 +125,24 @@ userRouter.get("/metadata/bulk", userMiddleware, async (req, res) => { //validat
     });
 });
 
-// User profile
-userRouter.get("/profile", userMiddleware, async (req, res) => { //validated
+// User profile (with admin override capability)
+userRouter.get("/profile", userMiddleware, async (req, res) => {
     const userId = req.userId!;
+    const { targetUserId } = req.query;
+    
+    let userToQuery = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can access other users' profiles" });
+            return;
+        }
+        userToQuery = targetUserId as string;
+    }
     
     const user = await client.user.findUnique({
-        where: { id: userId },
+        where: { id: userToQuery },
         select: {
             id: true,
             username: true,
@@ -106,40 +155,98 @@ userRouter.get("/profile", userMiddleware, async (req, res) => { //validated
     res.json({ user });
 });
 
-
-// Change password
-userRouter.put("/password", userMiddleware, async (req, res) => { //validated
+// Updated profile update with admin override
+userRouter.put("/profile", userMiddleware, async (req, res) => {
     const userId = req.userId!;
-    const { currentPassword, newPassword } = ChangePasswordSchema.parse(req.body);
+    const { targetUserId, ...rest } = req.body;
+    const updateData = UpdateUserProfileSchema.parse(rest);
+    
+    let userToUpdate = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can update other users' profiles" });
+            return;
+        }
+        userToUpdate = targetUserId;
+    }
+    
+    const user = await client.user.update({
+        where: { id: userToUpdate },
+        data: updateData,
+        select: {
+            id: true,
+            username: true,
+            name: true,
+            role: true,
+            createdAt: true
+        }
+    });
+    
+    res.json({ message: "Profile updated successfully", user });
+});
+
+// Change password (with admin override)
+userRouter.put("/password", userMiddleware, async (req, res) => {
+    const userId = req.userId!;
+    const { targetUserId, ...rest } = req.body;
+    const { currentPassword, newPassword } = ChangePasswordSchema.parse(rest);
+    
+    let userToUpdate = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can change other users' passwords" });
+            return;
+        }
+        userToUpdate = targetUserId;
+    }
     
     const user = await client.user.findUnique({
-        where: { id: userId },
+        where: { id: userToUpdate },
         select: { password: true }
     });
     
-    if (!user?.password || !(await compare(currentPassword, user.password))) {
-        res.status(400).json({ message: "Current password is incorrect" });
-        return;
+    // For admin changing other user's password, current password check is optional
+    if (userToUpdate === userId) {
+        if (!user?.password || !(await compare(currentPassword, user.password))) {
+            res.status(400).json({ message: "Current password is incorrect" });
+            return;
+        }
     }
     
     const hashedPassword = await hash(newPassword);
     
     await client.user.update({
-        where: { id: userId },
+        where: { id: userToUpdate },
         data: { password: hashedPassword }
     });
     
     res.json({ message: "Password changed successfully" });
 });
 
-// User spaces
-userRouter.get("/spaces", userMiddleware, async (req, res) => { //validated
+// Updated user spaces endpoint with admin access
+userRouter.get("/spaces", userMiddleware, async (req, res) => {
     const userId = req.userId!;
+    const { targetUserId } = req.query;
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
+    let userToQuery = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can access other users' spaces" });
+            return;
+        }
+        userToQuery = targetUserId as string;
+    }
+    
     const spaces = await client.space.findMany({
-        where: { ownerId: userId },
+        where: { ownerId: userToQuery },
         skip,
         take: limit,
         include: {
@@ -160,13 +267,26 @@ userRouter.get("/spaces", userMiddleware, async (req, res) => { //validated
     });
 });
 
-userRouter.get("/spaces/collaborating", userMiddleware, async (req, res) => { //validated
+// Updated collaborating spaces with admin access
+userRouter.get("/spaces/collaborating", userMiddleware, async (req, res) => {
     const userId = req.userId!;
+    const { targetUserId } = req.query;
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
+    let userToQuery = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can access other users' collaborating spaces" });
+            return;
+        }
+        userToQuery = targetUserId as string;
+    }
+    
     const collaboratingSpaces = await client.spaceCollaborator.findMany({
-        where: { userId },
+        where: { userId: userToQuery },
         skip,
         take: limit,
         include: {
@@ -197,14 +317,26 @@ userRouter.get("/spaces/collaborating", userMiddleware, async (req, res) => { //
     });
 });
 
-// User snippets
-userRouter.get("/snippets", userMiddleware, async (req, res) => { //validated
+// Updated user snippets with admin access
+userRouter.get("/snippets", userMiddleware, async (req, res) => {
     const userId = req.userId!;
+    const { targetUserId } = req.query;
     const { page, limit } = PaginationSchema.parse(req.query);
     const skip = (page - 1) * limit;
     
+    let userToQuery = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can access other users' snippets" });
+            return;
+        }
+        userToQuery = targetUserId as string;
+    }
+    
     const snippets = await client.snippet.findMany({
-        where: { ownerId: userId },
+        where: { ownerId: userToQuery },
         skip,
         take: limit,
         include: {
@@ -224,21 +356,31 @@ userRouter.get("/snippets", userMiddleware, async (req, res) => { //validated
     });
 });
 
-// User analytics
-userRouter.get("/analytics/views", userMiddleware, async (req, res) => { //validated
+// Updated analytics endpoints with admin access
+userRouter.get("/analytics/views", userMiddleware, async (req, res) => {
     const userId = req.userId!;
-    const { startDate, endDate, groupBy } = AnalyticsQuerySchema.parse(req.query);
+    const { targetUserId, startDate, endDate, groupBy } = req.query;
+    
+    let userToQuery = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can access other users' analytics" });
+            return;
+        }
+        userToQuery = targetUserId as string;
+    }
     
     const whereClause = {
-        ...(startDate && { viewedAt: { gte: new Date(startDate) } }),
-        ...(endDate && { viewedAt: { lte: new Date(endDate) } })
+        ...(startDate && { viewedAt: { gte: new Date(startDate as string) } }),
+        ...(endDate && { viewedAt: { lte: new Date(endDate as string) } })
     };
     
-    // Get views for user's snippets
     const snippetViews = await client.snippetView.findMany({
         where: {
             snippet: {
-                ownerId: userId
+                ownerId: userToQuery
             },
             ...whereClause
         },
@@ -250,11 +392,10 @@ userRouter.get("/analytics/views", userMiddleware, async (req, res) => { //valid
         orderBy: { viewedAt: 'desc' }
     });
     
-    // Get views for user's spaces
     const spaceViews = await client.spaceView.findMany({
         where: {
             space: {
-                ownerId: userId
+                ownerId: userToQuery
             },
             ...whereClause
         },
@@ -274,17 +415,27 @@ userRouter.get("/analytics/views", userMiddleware, async (req, res) => { //valid
     });
 });
 
-userRouter.get("/analytics/activity", userMiddleware, async (req, res) => { //validated
+userRouter.get("/analytics/activity", userMiddleware, async (req, res) => {
     const userId = req.userId!;
-    const { startDate, endDate } = AnalyticsQuerySchema.parse(req.query);
+    const { targetUserId, startDate, endDate } = req.query;
+    
+    let userToQuery = userId;
+    const isAdmin = await isGlobalAdmin(userId);
+    
+    if (targetUserId && targetUserId !== userId) {
+        if (!isAdmin) {
+            res.status(403).json({ message: "Only global admins can access other users' activity analytics" });
+            return;
+        }
+        userToQuery = targetUserId as string;
+    }
     
     const whereClause = {
-        ownerId: userId,
-        ...(startDate && { createdAt: { gte: new Date(startDate) } }),
-        ...(endDate && { createdAt: { lte: new Date(endDate) } })
+        ownerId: userToQuery,
+        ...(startDate && { createdAt: { gte: new Date(startDate as string) } }),
+        ...(endDate && { createdAt: { lte: new Date(endDate as string) } })
     };
     
-    // Get recent snippets
     const recentSnippets = await client.snippet.findMany({
         where: whereClause,
         select: {
@@ -300,7 +451,6 @@ userRouter.get("/analytics/activity", userMiddleware, async (req, res) => { //va
         take: 20
     });
     
-    // Get recent spaces
     const recentSpaces = await client.space.findMany({
         where: whereClause,
         select: {
@@ -327,6 +477,7 @@ userRouter.get("/analytics/activity", userMiddleware, async (req, res) => { //va
         }
     });
 });
+
 // Get user profile by username (public route - no auth required)
 userRouter.get("/profile/:username", async (req, res) => {
     const { username } = req.params;
@@ -354,6 +505,7 @@ userRouter.get("/profile/:username", async (req, res) => {
         res.status(500).json({ message: "Failed to fetch user profile" });
     }
 });
+
 // Get public spaces for a specific user (public route)
 userRouter.get("/:userId/spaces/public", async (req, res) => {
     const { userId } = req.params;

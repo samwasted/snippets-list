@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { apiRequest } from './api';
 
 // Interfaces for message payloads
 interface SnippetMovePayload {
@@ -186,14 +187,43 @@ export const useSpaceWebSocket = (options: UseSpaceWebSocketOptions = {}): UseSp
             connectionTimeoutRef.current = null;
         }
     }, []);
+    interface CurrentUser {
+        id: string;
+        name: string;
+        username: string;
+        role: string;
+    }
+    const [currentUser, setCurrentUser] = useState<CurrentUser | undefined>(undefined);
+    useEffect(() => {
+        const fetchUserMetadata = async () => {
+          try {
+            
+            const response = await apiRequest('/user/metadata');
+            if (response && response.metadata) {
+              setCurrentUser({
+                id: response.metadata.id,
+                name: response.metadata.name,
+                username: response.metadata.username,
+                role: response.metadata.role
+              });
+            }
+          } catch (error) {
+            console.error("Failed to fetch user metadata:", error);
+          }
+        };
+        fetchUserMetadata();
+      }, []);
 
     const validateSnippetOperation = useCallback((operation: string): PermissionCheck => {
         if (!userRole) {
             return { allowed: false, reason: 'User role not loaded' };
         }
-
-        const canPerform = userRole === 'OWNER' || userRole === 'EDITOR' || userRole === 'ADMIN';
         
+        let canPerform = userRole === 'OWNER' || userRole === 'EDITOR' || userRole === 'ADMIN';
+        console.log("current users role is "+currentUser?.role)
+        if(currentUser?.role.toLocaleLowerCase("admin")){
+            canPerform = true;
+        }
         return {
             allowed: canPerform,
             reason: canPerform ? undefined : `Insufficient permissions to ${operation} snippets. Role: ${userRole}`,
@@ -808,3 +838,4 @@ export const useSpaceWebSocket = (options: UseSpaceWebSocketOptions = {}): UseSp
         joinSpace
     };
 };
+

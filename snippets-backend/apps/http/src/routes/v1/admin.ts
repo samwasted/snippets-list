@@ -1,11 +1,25 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import { adminMiddleware } from "../../middleware/admin";
 import { 
     UpdateUserProfileSchema, 
     PaginationSchema,
-    AnalyticsQuerySchema 
+    AnalyticsQuerySchema, 
+    UpdateUserProfileSchemaAdmin
 } from "../../types/index";
 import client from "@repo/db";
+
+// Extend Express Request type to include 'user'
+declare global {
+    namespace Express {
+        interface User {
+            id: string;
+            [key: string]: any;
+        }
+        interface Request {
+            user?: User;
+        }
+    }
+}
 
 export const adminRouter = Router();
 
@@ -143,30 +157,63 @@ adminRouter.get("/users", adminMiddleware, async (req, res) => { //validated
     });
 });
 
-adminRouter.put("/user/:userId", adminMiddleware, async (req, res) => { //validated
-    const { userId } = req.params;
-    const validatedData = UpdateUserProfileSchema.parse(req.body);
-    
-    const user = await client.user.update({
-        where: { id: userId },
-        data: validatedData,
-        select: {
-            id: true,
-            username: true,
-            name: true,
-            role: true,
-            createdAt: true,
-            _count: {
-                select: {
-                    spaces: true,
-                    snippets: true
+adminRouter.put("/user/:userId", adminMiddleware, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const validatedData = UpdateUserProfileSchemaAdmin.parse(req.body);
+        
+        // Fix: Change 'type' to 'role'
+        if (validatedData.role && validatedData.role === 'admin') {
+            console.log(`Admin promotion: User ${userId} promoted to admin by ${req.user?.id}`);
+        }
+        
+        const user = await client.user.update({
+            where: { id: userId },
+            data: {
+                ...validatedData,
+                role: validatedData.role === "admin" ? "ADMIN" : "USER"
+            },
+            select: {
+                id: true,
+                username: true,
+                name: true,
+                role: true,
+                createdAt: true,
+                _count: {
+                    select: {
+                        spaces: true,
+                        snippets: true
+                    }
                 }
             }
+        });
+        
+        res.json({ 
+            message: validatedData.role === 'admin' ? 
+                "User promoted to admin successfully" : 
+                "User updated successfully", 
+            user 
+        });
+        
+    } catch (error) {
+        console.error('Error updating user:', error);
+        
+        if (typeof error === "object" && error !== null && "name" in error && (error as any).name === 'ZodError') {
+            res.status(400).json({ 
+                message: "Invalid data provided", 
+                errors: (error as any).errors 
+            });
+            return;
         }
-    });
-    
-    res.json({ message: "User updated successfully", user });
+        
+        res.status(500).json({ 
+            message: "Failed to update user" 
+        });
+        return;
+    }
 });
+
+
 
 adminRouter.delete("/user/:userId", adminMiddleware, async (req, res) => { //validated
     const { userId } = req.params;
