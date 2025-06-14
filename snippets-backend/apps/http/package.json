@@ -3,17 +3,24 @@
   "version": "1.0.0",
   "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
+    "prebuild": "pnpm --filter @repo/db exec prisma generate --schema=../../packages/db/prisma/schema.prisma",
+    "build": "pnpm esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --tsconfig=tsconfig.json --external:express --external:cors --external:dotenv --external:jsonwebtoken --external:zod --external:@prisma/client --external:@types/express --external:@types/jsonwebtoken",
+    "render": "pnpm install && pnpm run build",
     "start": "node dist/index.js",
-    "dev": "npm run build && npm run start"
+    "dev": "pnpm run build && pnpm run start",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "esbuild": "^0.19.0"
   },
   "dependencies": {
     "@repo/db": "workspace:*",
@@ -23,6 +30,7 @@
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "zod": "^3.25.49"
+    "zod": "^3.25.49",
+    "@prisma/client": "^6.8.2"
   }
 }
