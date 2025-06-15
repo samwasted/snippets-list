@@ -1,4 +1,3 @@
-// src/components/forms/UserForm.tsx
 import React, { useState, useEffect } from 'react';
 import type { User } from '../../types/admin';
 import Input from '../ui/Input';

@@ -34,9 +34,17 @@ const ProfilePage: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [publicSpaces, setPublicSpaces] = useState<Space[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', username: '' });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (username) {
@@ -83,6 +91,20 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  const handlePasswordToggle = () => {
+    setIsChangingPassword(!isChangingPassword);
+    setPasswordError(null);
+    setSuccessMessage(null);
+    if (isChangingPassword) {
+      // Reset password form when canceling
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+    }
+  };
+
   const handleSaveProfile = async () => {
     try {
       await apiRequest('/user/metadata', {
@@ -93,9 +115,68 @@ const ProfilePage: React.FC = () => {
       // Update local state
       setProfileUser(prev => prev ? { ...prev, ...editForm } : null);
       setIsEditing(false);
+      setSuccessMessage('Profile updated successfully');
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
       console.error('Error updating profile:', error);
       setError('Failed to update profile');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      setPasswordError(null);
+      
+      // Client-side validation
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        setPasswordError('New passwords do not match');
+        return;
+      }
+
+      if (passwordForm.newPassword.length < 6) {
+        setPasswordError('New password must be at least 6 characters long');
+        return;
+      }
+
+      const requestBody: any = {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      };
+
+      // If current user is admin and changing another user's password
+      if (currentUser?.role === 'ADMIN' && currentUser?.id !== profileUser?.id) {
+        requestBody.targetUserId = profileUser?.id;
+      }
+
+      await apiRequest('/user/password', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody)
+      });
+
+      setIsChangingPassword(false);
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setSuccessMessage('Password changed successfully');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      
+      // Handle specific error cases
+      if (error.status === 400) {
+        // Check if it's an invalid credentials error
+        if (error.message === "Current password is incorrect") {
+          setPasswordError('Invalid credentials: Current password is incorrect');
+        } else {
+          setPasswordError(error.message || 'Invalid request. Please check your input.');
+        }
+      } else if (error.status === 403) {
+        setPasswordError('Access denied: You do not have permission to change this password');
+      } else {
+        setPasswordError(error.message || 'Failed to change password');
+      }
     }
   };
 
@@ -108,6 +189,8 @@ const ProfilePage: React.FC = () => {
   };
 
   const isCurrentUser = currentUser?.id === profileUser?.id;
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const canChangePassword = isCurrentUser || (isAdmin && profileUser);
 
   if (loading) {
     return (
@@ -152,7 +235,7 @@ const ProfilePage: React.FC = () => {
         {/* Back Button */}
         <div className="mb-8">
           <button
-            onClick={() => navigate(-1)} // This navigates to the previous page in history
+            onClick={() => navigate(-1)}
             className="inline-flex items-center px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-xl hover:bg-white/20 transition-all duration-300 font-medium group"
           >
             <svg className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,6 +245,12 @@ const ProfilePage: React.FC = () => {
           </button>
         </div>
 
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-emerald-300 text-center backdrop-blur-sm">
+            {successMessage}
+          </div>
+        )}
 
         {/* Profile Header */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 mb-8 shadow-2xl">
@@ -207,6 +296,73 @@ const ProfilePage: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              ) : isChangingPassword ? (
+                <div className="space-y-6">
+                  <h2 className="text-3xl font-bold text-white mb-6">Change Password</h2>
+                  
+                  {passwordError && (
+                    <div className={`p-4 border rounded-xl text-center backdrop-blur-sm ${
+                      passwordError.includes('Invalid credentials') 
+                        ? 'bg-red-600/20 border-red-500/40 text-red-200' 
+                        : 'bg-red-500/20 border-red-500/30 text-red-300'
+                    }`}>
+                      <div className="flex items-center justify-center gap-2">
+                        {passwordError.includes('Invalid credentials') && (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                        )}
+                        <span className="font-medium">{passwordError == "API request failed: 400 Bad Request"? "Invalid current password": passwordError} </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Only show current password field if changing own password */}
+                  {isCurrentUser && (
+                    <input
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                      className={`w-full bg-white/10 backdrop-blur-sm border rounded-xl px-6 py-4 text-white placeholder-white/60 focus:outline-none focus:ring-2 transition-all ${
+                        passwordError?.includes('Invalid credentials') 
+                          ? 'border-red-500/50 focus:border-red-400 focus:ring-red-400/50' 
+                          : 'border-white/20 focus:border-purple-400 focus:ring-purple-400/50'
+                      }`}
+                      placeholder="Current Password"
+                    />
+                  )}
+                  
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-6 py-4 text-white placeholder-white/60 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/50 transition-all"
+                    placeholder="New Password"
+                  />
+                  
+                  <input
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-6 py-4 text-white placeholder-white/60 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/50 transition-all"
+                    placeholder="Confirm New Password"
+                  />
+                  
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={handleChangePassword}
+                      className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                    >
+                      Change Password
+                    </button>
+                    <button
+                      onClick={handlePasswordToggle}
+                      className="px-8 py-3 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-xl hover:bg-white/20 transition-all duration-300 font-semibold"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <>
                   <h1 className="text-4xl lg:text-5xl font-bold text-white mb-3 tracking-tight">{profileUser?.name}</h1>
@@ -214,17 +370,32 @@ const ProfilePage: React.FC = () => {
                   <p className="text-white/70 text-lg mb-6 font-light">
                     Joined {profileUser && formatDate(profileUser.createdAt)}
                   </p>
-                  {isCurrentUser && (
-                    <button
-                      onClick={handleEditToggle}
-                      className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-semibold"
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Edit Profile
-                    </button>
-                  )}
+                  
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    {isCurrentUser && (
+                      <button
+                        onClick={handleEditToggle}
+                        className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-semibold"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit Profile
+                      </button>
+                    )}
+                    
+                    {canChangePassword && (
+                      <button
+                        onClick={handlePasswordToggle}
+                        className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-xl hover:from-green-800 hover:to-green-900 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-semibold"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        {isCurrentUser ? 'Change Password' : `Change ${profileUser?.name}'s Password`}
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -237,7 +408,6 @@ const ProfilePage: React.FC = () => {
             <h2 className="text-3xl font-bold text-white tracking-tight">
               {isCurrentUser ? 'Your Public Spaces' : `${profileUser?.name}'s Public Spaces`}
             </h2>
-
           </div>
 
           <HorizontalScroll>
@@ -250,7 +420,7 @@ const ProfilePage: React.FC = () => {
                 <div className="text-center">
                   <div className="w-24 h-24 bg-white/10 backdrop-blur-sm rounded-3xl flex items-center justify-center mb-6 mx-auto">
                     <svg className="w-12 h-12 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2-2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                     </svg>
                   </div>
                   <p className="text-2xl font-light">No public spaces yet</p>

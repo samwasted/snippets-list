@@ -146,9 +146,9 @@ const listItemVariants = {
   visible: (index: number) => ({
     opacity: 1,
     y: 0,
-    transition: { 
+    transition: {
       duration: 0.3,
-      delay: index * 0.05 
+      delay: index * 0.05
     }
   }),
   hover: {
@@ -159,11 +159,11 @@ const listItemVariants = {
 
 const buttonVariants = {
   initial: { scale: 1 },
-  hover: { 
+  hover: {
     scale: 1.05,
     transition: { duration: 0.2 }
   },
-  tap: { 
+  tap: {
     scale: 0.95,
     transition: { duration: 0.1 }
   }
@@ -221,142 +221,133 @@ const SortableSnippetItem: React.FC<{
   formatDate,
   isDragging = false
 }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging: isSortableDragging,
-  } = useSortable({ id: snippet.id });
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging: isSortableDragging,
+    } = useSortable({ id: snippet.id });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isSortableDragging ? 0.5 : 1,
-  };
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isSortableDragging ? 0.5 : 1,
+    };
 
-  const canEdit = userRole !== 'VIEWER';
+    const canEdit = userRole !== 'VIEWER';
 
-  return (
-    <motion.div
-      ref={setNodeRef}
-      style={style}
-      variants={listItemVariants}
-      initial="hidden"
-      animate="visible"
-      exit="hidden"
-      whileHover={!isSortableDragging ? "hover" : undefined}
-      custom={index}
-      className="group"
-    >
-      <div
-        onClick={() => !isSortableDragging && onNavigateToBox(snippet)}
-        className={`flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 border shadow-sm hover:shadow-lg ${
-          isSortableDragging 
-            ? 'shadow-2xl scale-105 rotate-2 z-50' 
-            : ''
-        } ${
-          isDarkMode
-            ? 'hover:bg-gradient-to-r hover:from-purple-900/30 hover:to-pink-900/30 border-gray-700 bg-gray-800/50'
-            : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-gray-100 bg-white'
-        }`}
-        style={{ cursor: 'pointer' }}
+    return (
+      <motion.div
+        ref={setNodeRef}
+        style={style}
+        variants={listItemVariants}
+        initial="hidden"
+        animate="visible"
+        exit="hidden"
+        whileHover={!isSortableDragging ? "hover" : undefined}
+        custom={index}
+        className="group"
       >
-        {/* Drag Handle */}
-        {canEdit && (
-          <div
-            {...attributes}
-            {...listeners}
-            className={`flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity p-2 -m-2 rounded-lg cursor-grab active:cursor-grabbing ${
-              isDarkMode
-                ? 'hover:bg-gradient-to-r hover:from-purple-800/30 hover:to-pink-800/30'
-                : 'hover:bg-gradient-to-r hover:from-purple-100 hover:to-pink-100'
+        <div
+          onClick={() => !isSortableDragging && onNavigateToBox(snippet)}
+          className={`flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 border shadow-sm hover:shadow-lg ${isSortableDragging
+              ? 'shadow-2xl scale-105 rotate-2 z-50'
+              : ''
+            } ${isDarkMode
+              ? 'hover:bg-gradient-to-r hover:from-purple-900/30 hover:to-pink-900/30 border-gray-700 bg-gray-800/50'
+              : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-gray-100 bg-white'
             }`}
-            style={{ 
-              touchAction: 'none',
-              cursor: isSortableDragging ? 'grabbing' : 'grab'
-            }}
-          >
-            <GripVertical className={`w-4 h-4 transition-colors duration-300 ${
-              isDarkMode ? 'text-gray-500' : 'text-gray-400'
-            }`} />
-          </div>
-        )}
-        
-        {/* Snippet Content */}
-        <div className="flex flex-col gap-2 flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            <div className={`w-6 h-6 rounded-lg ${snippet.color} shadow-lg flex-shrink-0`} />
-            <div className="flex-1 min-w-0">
-              <div className={`font-semibold truncate text-sm transition-colors duration-300 ${
-                isDarkMode ? 'text-gray-100' : 'text-gray-800'
-              }`}>
-                {snippet.title}
-              </div>
-              <div className={`text-xs mt-0.5 flex items-center gap-2 transition-colors duration-300 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                <span>x: {Math.round(snippet.x)}, y: {Math.round(snippet.y)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className={`text-xs pl-9 transition-colors duration-300 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            Last edited: {formatDate(snippet.updatedAt)}
-          </div>
-
-          {/* Tags */}
-          {(snippet.tags?.length ?? 0) > 0 && (
-            <div className="flex flex-wrap gap-1 pl-9">
-              {snippet.tags.map((tag) => (
-                <span
-                  key={tag}
-                  onContextMenu={(e) => onTagRightClick(e, tag)}
-                  className={`inline-block text-xs px-2 py-1 rounded-full cursor-context-menu transition-all duration-200 shadow-sm hover:scale-105 ${
-                    isDarkMode
-                      ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-200 hover:from-gray-600 hover:to-gray-500'
-                      : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 hover:from-gray-200 hover:to-gray-300'
-                  }`}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {tag}
-                </span>
-              ))}
+          style={{ cursor: 'pointer' }}
+        >
+          {/* Drag Handle */}
+          {canEdit && (
+            <div
+              {...attributes}
+              {...listeners}
+              className={`flex-shrink-0 mt-1 opacity-60 group-hover:opacity-100 transition-opacity p-3 -m-1 rounded-lg cursor-grab active:cursor-grabbing min-w-[32px] min-h-[32px] flex items-center justify-center ${isDarkMode
+                  ? 'hover:bg-gradient-to-r hover:from-purple-800/30 hover:to-pink-800/30'
+                  : 'hover:bg-gradient-to-r hover:from-purple-100 hover:to-pink-100'
+                }`}
+              style={{
+                touchAction: 'none',
+                cursor: isSortableDragging ? 'grabbing' : 'grab'
+              }}
+            >
+              <GripVertical className={`w-5 h-5 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`} />
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex items-center justify-between pl-9 pt-2">
-            <div className="flex gap-2">
-              {(userRole === "ADMIN" || userRole === "EDITOR" || userRole === "OWNER") && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteSnippet(snippet.id);
-                  }}
-                  className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
-                  style={{ cursor: 'pointer' }}
-                >
-                  Delete
-                </motion.button>
-              )}
+          {/* Snippet Content */}
+          <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <div className="flex items-center gap-3">
+              <div className={`w-6 h-6 rounded-lg ${snippet.color} shadow-lg flex-shrink-0`} />
+              <div className="flex-1 min-w-0">
+                <div className={`font-semibold truncate text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                  }`}>
+                  {snippet.title}
+                </div>
+                <div className={`text-xs mt-0.5 flex items-center gap-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                  <span>x: {Math.round(snippet.x)}, y: {Math.round(snippet.y)}</span>
+                </div>
+              </div>
             </div>
-            <div className={`text-xs transition-colors duration-300 ${
-              isDarkMode ? 'text-gray-500' : 'text-gray-400'
-            }`}>
-              {snippet.createdAt ? new Date(snippet.createdAt).toLocaleDateString() : "Unknown date"}
+
+            <div className={`text-xs pl-9 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+              Last edited: {formatDate(snippet.updatedAt)}
+            </div>
+
+            {/* Tags */}
+            {(snippet.tags?.length ?? 0) > 0 && (
+              <div className="flex flex-wrap gap-1 pl-9">
+                {snippet.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    onContextMenu={(e) => onTagRightClick(e, tag)}
+                    className={`inline-block text-xs px-2 py-1 rounded-full cursor-context-menu transition-all duration-200 shadow-sm hover:scale-105 ${isDarkMode
+                        ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-200 hover:from-gray-600 hover:to-gray-500'
+                        : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 hover:from-gray-200 hover:to-gray-300'
+                      }`}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pl-9 pt-2">
+              <div className="flex gap-2">
+                {(userRole === "ADMIN" || userRole === "EDITOR" || userRole === "OWNER") && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteSnippet(snippet.id);
+                    }}
+                    className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    Delete
+                  </motion.button>
+                )}
+              </div>
+              <div className={`text-xs transition-colors duration-300 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                }`}>
+                {snippet.createdAt ? new Date(snippet.createdAt).toLocaleDateString() : "Unknown date"}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </motion.div>
-  );
-};
+      </motion.div>
+    );
+  };
 
 // Main Sidebar Component
 const Sidebar: React.FC<SidebarProps> = ({
@@ -452,7 +443,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         // Convert to snippet order indices
         const oldSnippetOrderIndex = snippetOrder.indexOf(active.id as string);
         const newSnippetOrderIndex = snippetOrder.indexOf(over?.id as string);
-        
+
         if (oldSnippetOrderIndex !== -1 && newSnippetOrderIndex !== -1) {
           onReorderSnippets(oldSnippetOrderIndex, newSnippetOrderIndex);
         }
@@ -465,7 +456,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Navigation handlers
   const handleNavigateToProfile = (username: string) => {
     navigate(`/profile/${username}`, {
-      state: { 
+      state: {
         fromSpace: spaceId,
         transition: 'slide'
       }
@@ -474,7 +465,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const handleNavigateToAnalytics = () => {
     navigate(`/space/${spaceId}/analytics`, {
-      state: { 
+      state: {
         fromSidebar: true,
         transition: 'fade'
       }
@@ -724,11 +715,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       <motion.div
         variants={sidebarVariants}
         animate={isCollapsed ? "collapsed" : "expanded"}
-        className={`fixed right-4 top-20 bottom-4 rounded-xl shadow-2xl sm:h-[90vh] h-[85vh] flex z-50 flex-col border overflow-hidden transition-colors duration-300 ${
-          isDarkMode
+        className={`fixed right-4 top-20 bottom-4 rounded-xl shadow-2xl sm:h-[90vh] h-[85vh] flex z-50 flex-col border overflow-hidden transition-colors duration-300 ${isDarkMode
             ? 'bg-gray-800 border-gray-700'
             : 'bg-white border-gray-100'
-        }`}
+          }`}
         style={{
           background: isDarkMode
             ? 'linear-gradient(135deg, rgba(31,41,55,0.95) 0%, rgba(17,24,39,0.95) 100%)'
@@ -747,17 +737,16 @@ const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Header Section */}
         <motion.div
-          className={`flex items-center justify-between p-4 border-b rounded-t-xl transition-colors duration-300 ${
-            isDarkMode
+          className={`flex items-center justify-between p-4 border-b rounded-t-xl transition-colors duration-300 ${isDarkMode
               ? 'border-gray-700 bg-gradient-to-r from-purple-900/30 to-pink-900/30'
               : 'border-gray-100 bg-gradient-to-r from-purple-50 to-pink-50'
-          }`}
+            }`}
           onTouchStart={handleSidebarTouch}
           onMouseDown={handleSidebarMouse}
         >
           <AnimatePresence>
             {!isCollapsed && (
-              <motion.div 
+              <motion.div
                 className="flex-1"
                 variants={contentVariants}
                 initial="hidden"
@@ -767,9 +756,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <h3 className="font-bold text-lg bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                   Space Navigator
                 </h3>
-                <p className={`text-xs mt-1 transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}>
+                <p className={`text-xs mt-1 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
                   Manage your workspace
                 </p>
               </motion.div>
@@ -784,11 +772,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 whileHover="hover"
                 whileTap="tap"
                 onClick={onClose}
-                className={`p-2 rounded-full transition-all duration-200 flex-shrink-0 lg:hidden ${
-                  isDarkMode
+                className={`p-2 rounded-full transition-all duration-200 flex-shrink-0 lg:hidden ${isDarkMode
                     ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200'
                     : 'hover:bg-white/50 text-gray-600 hover:text-gray-800'
-                }`}
+                  }`}
                 title="Close Sidebar"
                 style={{ cursor: 'pointer' }}
               >
@@ -802,11 +789,10 @@ const Sidebar: React.FC<SidebarProps> = ({
               whileHover="hover"
               whileTap="tap"
               onClick={toggleSidebar}
-              className={`p-2 rounded-full transition-all duration-200 flex-shrink-0 backdrop-blur-sm ${
-                isDarkMode
+              className={`p-2 rounded-full transition-all duration-200 flex-shrink-0 backdrop-blur-sm ${isDarkMode
                   ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200'
                   : 'hover:bg-white/50 text-gray-600 hover:text-gray-800'
-              }`}
+                }`}
               title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
               style={{ cursor: 'pointer' }}
             >
@@ -830,7 +816,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               exit="hidden"
               className="flex-1 flex flex-col items-center justify-center p-3 space-y-6"
             >
-              <motion.div 
+              <motion.div
                 className="text-center"
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.2 }}
@@ -838,9 +824,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                   {snippets.length}
                 </div>
-                <div className={`text-xs transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                }`}>
+                <div className={`text-xs transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
                   snippets
                 </div>
               </motion.div>
@@ -879,24 +864,24 @@ const Sidebar: React.FC<SidebarProps> = ({
               {/* Animated filter indicators */}
               <AnimatePresence>
                 {tagFilters.size > 0 && (
-                  <motion.div 
+                  <motion.div
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    className="w-4 h-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse" 
-                    title="Filters active" 
+                    className="w-4 h-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse"
+                    title="Filters active"
                   />
                 )}
               </AnimatePresence>
 
               <AnimatePresence>
                 {searchQuery && (
-                  <motion.div 
+                  <motion.div
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    className="w-4 h-4 bg-gradient-to-r from-green-500 to-teal-500 rounded-full animate-pulse" 
-                    title="Search active" 
+                    className="w-4 h-4 bg-gradient-to-r from-green-500 to-teal-500 rounded-full animate-pulse"
+                    title="Search active"
                   />
                 )}
               </AnimatePresence>
@@ -920,13 +905,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                   ))}
                 </AnimatePresence>
                 {filteredSnippets.length > 6 && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
-                    className={`text-xs text-center font-medium transition-colors duration-300 ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                    }`}
+                    className={`text-xs text-center font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}
                   >
                     +{filteredSnippets.length - 6} more
                   </motion.div>
@@ -947,23 +931,21 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="flex-1 flex flex-col overflow-hidden"
             >
               {/* Tab Navigation */}
-              <div className={`flex border-b transition-colors duration-300 ${
-                isDarkMode ? 'border-gray-700' : 'border-gray-100'
-              }`}>
+              <div className={`flex border-b transition-colors duration-300 ${isDarkMode ? 'border-gray-700' : 'border-gray-100'
+                }`}>
                 <motion.button
                   variants={buttonVariants}
                   whileHover="hover"
                   whileTap="tap"
                   onClick={() => setActiveTab('snippets')}
-                  className={`flex-1 py-3 px-4 text-sm font-medium transition-colors duration-300 ${
-                    activeTab === 'snippets'
+                  className={`flex-1 py-3 px-4 text-sm font-medium transition-colors duration-300 ${activeTab === 'snippets'
                       ? isDarkMode
                         ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-900/20'
                         : 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
                       : isDarkMode
                         ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/10'
                         : 'text-gray-600 hover:text-purple-500 hover:bg-purple-50/50'
-                  }`}
+                    }`}
                   style={{ cursor: 'pointer' }}
                 >
                   Snippets
@@ -973,15 +955,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                   whileHover="hover"
                   whileTap="tap"
                   onClick={() => setActiveTab('collaborators')}
-                  className={`flex-1 py-3 px-4 text-sm font-medium transition-colors duration-300 flex items-center justify-center gap-2 ${
-                    activeTab === 'collaborators'
+                  className={`flex-1 py-3 px-4 text-sm font-medium transition-colors duration-300 flex items-center justify-center gap-2 ${activeTab === 'collaborators'
                       ? isDarkMode
                         ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-900/20'
                         : 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
                       : isDarkMode
                         ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/10'
                         : 'text-gray-600 hover:text-purple-500 hover:bg-purple-50/50'
-                  }`}
+                    }`}
                   style={{ cursor: 'pointer' }}
                 >
                   <Users className="w-4 h-4" />
@@ -991,13 +972,12 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               {/* Analytics Button */}
               {(userRole === "ADMIN" || userRole === "EDITOR" || userRole === "OWNER") && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className={`p-3 border-b transition-colors duration-300 ${
-                    isDarkMode ? 'border-gray-700' : 'border-gray-100'
-                  }`}
+                  className={`p-3 border-b transition-colors duration-300 ${isDarkMode ? 'border-gray-700' : 'border-gray-100'
+                    }`}
                 >
                   <motion.button
                     variants={buttonVariants}
@@ -1017,24 +997,21 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               {/* Space Visibility Toggle */}
               {userRole === 'OWNER' && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className={`p-3 border-b transition-colors duration-300 ${
-                    isDarkMode ? 'border-gray-700' : 'border-gray-100'
-                  }`}
+                  className={`p-3 border-b transition-colors duration-300 ${isDarkMode ? 'border-gray-700' : 'border-gray-100'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <h4 className={`text-sm font-medium transition-colors duration-300 ${
-                        isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                      }`}>
+                      <h4 className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                        }`}>
                         Space Visibility
                       </h4>
-                      <p className={`text-xs transition-colors duration-300 ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
+                      <p className={`text-xs transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
                         {isSpacePublic ? 'Anyone can view this space' : 'Only collaborators can view this space'}
                       </p>
                     </div>
@@ -1042,11 +1019,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                       whileTap={{ scale: 0.95 }}
                       onClick={handleToggleSpaceVisibility}
                       disabled={isTogglingVisibility}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
-                        isSpacePublic
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${isSpacePublic
                           ? 'bg-gradient-to-r from-green-500 to-emerald-500'
                           : isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                      }`}
+                        }`}
                       style={{ cursor: 'pointer' }}
                     >
                       <motion.span
@@ -1060,28 +1036,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </motion.button>
                   </div>
 
-                  <motion.div 
+                  <motion.div
                     initial={{ scale: 0.95 }}
                     animate={{ scale: 1 }}
-                    className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 transition-colors duration-300 ${
-                      isSpacePublic
+                    className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 transition-colors duration-300 ${isSpacePublic
                         ? 'bg-green-100 text-green-700'
                         : isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                    }`}
+                      }`}
                   >
-                    <motion.div 
+                    <motion.div
                       animate={{ scale: [1, 1.2, 1] }}
                       transition={{ duration: 1, repeat: Infinity }}
-                      className={`w-2 h-2 rounded-full ${
-                        isSpacePublic ? 'bg-green-500' : isDarkMode ? 'bg-gray-500' : 'bg-gray-500'
-                      }`} 
+                      className={`w-2 h-2 rounded-full ${isSpacePublic ? 'bg-green-500' : isDarkMode ? 'bg-gray-500' : 'bg-gray-500'
+                        }`}
                     />
                     {isSpacePublic ? 'Public' : 'Private'}
                   </motion.div>
 
                   <AnimatePresence>
                     {visibilityError && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
@@ -1107,28 +1081,25 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className="flex-1 flex flex-col overflow-hidden"
                   >
                     {/* Search Section */}
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 }}
-                      className={`p-4 border-b transition-colors duration-300 ${
-                        isDarkMode ? 'border-gray-700' : 'border-gray-100'
-                      }`}
+                      className={`p-4 border-b transition-colors duration-300 ${isDarkMode ? 'border-gray-700' : 'border-gray-100'
+                        }`}
                     >
                       <div className="relative">
-                        <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-400'
-                        }`} />
+                        <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-400'
+                          }`} />
                         <input
                           type="text"
                           placeholder="Search snippets..."
                           value={searchQuery}
                           onChange={(e) => onSearchChange(e.target.value)}
-                          className={`w-full pl-10 pr-8 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                            isDarkMode
+                          className={`w-full pl-10 pr-8 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${isDarkMode
                               ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
                               : 'border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 text-gray-900'
-                          }`}
+                            }`}
                           style={{ cursor: 'text' }}
                         />
                         <AnimatePresence>
@@ -1140,11 +1111,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={() => onSearchChange("")}
-                              className={`absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors p-1 hover:bg-opacity-20 rounded-full ${
-                                isDarkMode
+                              className={`absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors p-1 hover:bg-opacity-20 rounded-full ${isDarkMode
                                   ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-200'
                                   : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                              }`}
+                                }`}
                               style={{ cursor: 'pointer' }}
                             >
                               <X className="w-4 h-4" />
@@ -1159,17 +1129,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
-                      className={`p-4 border-b max-h-48 overflow-y-auto transition-colors duration-300 scrollbar scrollbar-thumb-rounded ${
-                        isDarkMode
+                      className={`p-4 border-b max-h-48 overflow-y-auto transition-colors duration-300 scrollbar scrollbar-thumb-rounded ${isDarkMode
                           ? 'border-gray-700 scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500'
                           : 'border-gray-100 scrollbar-thumb-gray-400 scrollbar-track-gray-50 hover:scrollbar-thumb-gray-500'
-                      }`}
+                        }`}
                       onWheel={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className={`font-semibold text-sm hidden sm:block transition-colors duration-300 ${
-                          isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                        }`}>
+                        <h4 className={`font-semibold text-sm hidden sm:block transition-colors duration-300 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                          }`}>
                           Filter tags
                         </h4>
                         {tagFilters.size > 0 && (
@@ -1184,13 +1152,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                           </motion.button>
                         )}
                       </div>
-                      
-                      <p className={`text-xs mb-3 transition-colors duration-300 ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
+
+                      <p className={`text-xs mb-3 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
                         Right-click/hold to change color of boxes of similar tag
                       </p>
-                      
+
                       <div className="flex flex-wrap gap-2">
                         <AnimatePresence>
                           {getAllTags().map((tag, index) => {
@@ -1208,25 +1175,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 custom={index}
                                 onClick={() => onToggleTagFilter(tag)}
                                 onContextMenu={(e) => onTagRightClick(e, tag)}
-                                className={`inline-flex items-center text-xs px-3 py-2 rounded-full transition-all duration-200 font-medium shadow-sm hover:shadow-md relative group ${
-                                  isSelected
+                                className={`inline-flex items-center text-xs px-3 py-2 rounded-full transition-all duration-200 font-medium shadow-sm hover:shadow-md relative group ${isSelected
                                     ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
                                     : isDarkMode
                                       ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-200 hover:from-gray-600 hover:to-gray-500'
                                       : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
-                                }`}
+                                  }`}
                                 title={userRole !== 'VIEWER' ? "Right-click to change color" : ""}
                                 style={{ cursor: 'pointer' }}
                               >
                                 {tag}
                                 <span className="ml-1.5 opacity-70">({snippetCount})</span>
                                 {userRole !== 'VIEWER' && (
-                                  <motion.div 
+                                  <motion.div
                                     initial={{ opacity: 0, scale: 0.8 }}
                                     whileHover={{ opacity: 1, scale: 1 }}
-                                    className={`absolute -top-1 -right-1 w-3 h-3 rounded-full transition-all duration-200 ${
-                                      isDarkMode ? 'bg-purple-400' : 'bg-purple-500'
-                                    }`}
+                                    className={`absolute -top-1 -right-1 w-3 h-3 rounded-full transition-all duration-200 ${isDarkMode ? 'bg-purple-400' : 'bg-purple-500'
+                                      }`}
                                   >
                                     <Palette className="w-2 h-2 text-white m-0.5" />
                                   </motion.div>
@@ -1236,23 +1201,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                           })}
                         </AnimatePresence>
                         {getAllTags().length === 0 && (
-                          <span className={`text-xs italic transition-colors duration-300 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`}>
+                          <span className={`text-xs italic transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
                             No tags yet
                           </span>
                         )}
                       </div>
 
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className={`text-xs mt-4 p-3 hidden sm:block rounded-lg border transition-colors duration-300 ${
-                          isDarkMode
+                        className={`text-xs mt-4 p-3 hidden sm:block rounded-lg border transition-colors duration-300 ${isDarkMode
                             ? 'bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-gray-600 text-gray-300'
                             : 'bg-gradient-to-r from-blue-50 to-purple-50 border-gray-100 text-gray-500'
-                        }`}
+                          }`}
                       >
                         {tagFilters.size === 0 && !searchQuery.trim()
                           ? `Showing all ${snippets.length} snippets`
@@ -1266,11 +1229,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.3 }}
-                      className={`flex-1 overflow-y-auto p-3 scrollbar scrollbar-thumb-rounded ${
-                        isDarkMode
+                      className={`flex-1 overflow-y-auto p-3 scrollbar scrollbar-thumb-rounded ${isDarkMode
                           ? 'scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500'
                           : 'scrollbar-thumb-gray-400 scrollbar-track-gray-50 hover:scrollbar-thumb-gray-500'
-                      }`}
+                        }`}
                       onWheel={(e) => e.stopPropagation()}
                     >
                       <DndContext
@@ -1299,21 +1261,19 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 />
                               ))
                             ) : (
-                              <motion.div 
+                              <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.2 }}
                                 className="text-center py-12"
                               >
                                 <div className="text-6xl mb-4">📦</div>
-                                <div className={`font-medium mb-2 transition-colors duration-300 ${
-                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                }`}>
+                                <div className={`font-medium mb-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                  }`}>
                                   No snippets found
                                 </div>
-                                <div className={`text-xs transition-colors duration-300 ${
-                                  isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                                }`}>
+                                <div className={`text-xs transition-colors duration-300 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                  }`}>
                                   {searchQuery || tagFilters.size > 0
                                     ? "Try adjusting your filters or search terms"
                                     : "Create your first snippet to get started"
@@ -1331,9 +1291,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                               index={-1}
                               isDarkMode={isDarkMode}
                               userRole={userRole}
-                              onNavigateToBox={() => {}}
-                              onDeleteSnippet={() => {}}
-                              onTagRightClick={() => {}}
+                              onNavigateToBox={() => { }}
+                              onDeleteSnippet={() => { }}
+                              onTagRightClick={() => { }}
                               formatDate={formatDate}
                               isDragging={true}
                             />
@@ -1354,24 +1314,22 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className="flex-1 flex flex-col overflow-hidden"
                   >
                     {/* Collaborators Header */}
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 }}
-                      className={`p-4 border-b transition-colors duration-300 ${
-                        isDarkMode
+                      className={`p-4 border-b transition-colors duration-300 ${isDarkMode
                           ? 'border-gray-700 bg-gradient-to-r from-purple-900/20 to-blue-900/20'
                           : 'border-gray-100 bg-gradient-to-r from-purple-50 to-blue-50'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className={`font-semibold flex items-center gap-2 transition-colors duration-300 ${
-                          isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                        }`}>
+                        <h4 className={`font-semibold flex items-center gap-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                          }`}>
                           <Users className="w-4 h-4" />
                           <span>Collaborators</span>
                           {collaboratorSummary && (
-                            <motion.span 
+                            <motion.span
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
                               className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full"
@@ -1384,7 +1342,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                       {/* Role Distribution Summary */}
                       {collaboratorSummary && (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.2 }}
@@ -1408,48 +1366,43 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </motion.div>
                       )}
 
-                      <p className={`text-xs transition-colors duration-300 ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
+                      <p className={`text-xs transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
                         Manage who has access to this space
                       </p>
                     </motion.div>
 
                     {/* Add Collaborator Form */}
                     {canManageCollaborators && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
-                        className={`p-4 border-b transition-colors duration-300 ${
-                          isDarkMode
+                        className={`p-4 border-b transition-colors duration-300 ${isDarkMode
                             ? 'border-gray-700 bg-gradient-to-r from-gray-800/50 to-gray-700/50'
                             : 'border-gray-100 bg-gradient-to-r from-gray-50 to-gray-100'
-                        }`}
+                          }`}
                       >
                         <form onSubmit={handleAddCollaborator} className="space-y-3">
                           <div>
-                            <label htmlFor="username" className={`block text-xs font-medium mb-1 transition-colors duration-300 ${
-                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                            }`}>
+                            <label htmlFor="username" className={`block text-xs font-medium mb-1 transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
                               Add new collaborator
                             </label>
                             <div className="flex gap-2 mb-2">
                               <div className="relative flex-1">
-                                <UserPlus className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                                  isDarkMode ? 'text-gray-400' : 'text-gray-400'
-                                }`} />
+                                <UserPlus className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-400'
+                                  }`} />
                                 <input
                                   id="username"
                                   type="text"
                                   placeholder="Username"
                                   value={newUsername}
                                   onChange={(e) => setNewUsername(e.target.value)}
-                                  className={`w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                                    isDarkMode
+                                  className={`w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${isDarkMode
                                       ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
                                       : 'border-gray-200 bg-white text-gray-900'
-                                  }`}
+                                    }`}
                                   disabled={isAddingCollaborator}
                                   style={{ cursor: 'text' }}
                                 />
@@ -1458,11 +1411,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                               <select
                                 value={newRole}
                                 onChange={(e) => setNewRole(e.target.value as 'VIEWER' | 'EDITOR' | 'ADMIN')}
-                                className={`border rounded-lg text-sm py-2 pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                                  isDarkMode
+                                className={`border rounded-lg text-sm py-2 pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${isDarkMode
                                     ? 'border-gray-600 bg-gray-700 text-white'
                                     : 'border-gray-200 bg-white text-gray-900'
-                                }`}
+                                  }`}
                                 disabled={isAddingCollaborator}
                                 style={{ cursor: 'pointer' }}
                               >
@@ -1492,7 +1444,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                           <AnimatePresence>
                             {addCollaboratorError && (
-                              <motion.div 
+                              <motion.div
                                 initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
@@ -1508,18 +1460,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                     )}
 
                     {/* Collaborators List */}
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.3 }}
-                      className={`flex-1 overflow-y-auto p-3 scrollbar scrollbar-thumb-rounded ${
-                        isDarkMode
+                      className={`flex-1 overflow-y-auto p-3 scrollbar scrollbar-thumb-rounded ${isDarkMode
                           ? 'border-gray-700 scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500'
                           : 'border-gray-100 scrollbar-thumb-gray-400 scrollbar-track-gray-50 hover:scrollbar-thumb-gray-500'
-                      }`}
+                        }`}
                     >
                       {isLoadingCollaborators ? (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           className="flex items-center justify-center h-32"
@@ -1527,20 +1478,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                           <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
                         </motion.div>
                       ) : collaboratorError ? (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           className="text-center py-8"
                         >
                           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                          <div className={`font-medium mb-2 transition-colors duration-300 ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                          }`}>
+                          <div className={`font-medium mb-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                            }`}>
                             Failed to load collaborators
                           </div>
-                          <div className={`text-xs max-w-xs mx-auto transition-colors duration-300 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`}>
+                          <div className={`text-xs max-w-xs mx-auto transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
                             {collaboratorError}
                           </div>
                         </motion.div>
@@ -1548,15 +1497,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <div className="space-y-3">
                           {/* Space Owner Section */}
                           {spaceInfo && (
-                            <motion.div 
+                            <motion.div
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               whileHover={{ scale: 1.02 }}
-                              className={`p-4 rounded-xl border shadow-sm transition-colors duration-200 cursor-pointer ${
-                                isDarkMode
+                              className={`p-4 rounded-xl border shadow-sm transition-colors duration-200 cursor-pointer ${isDarkMode
                                   ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-700/50 hover:border-purple-600/50'
                                   : 'bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200 hover:border-purple-300'
-                              }`}
+                                }`}
                               onClick={() => handleNavigateToProfile(spaceInfo.owner.username)}
                               style={{ cursor: 'pointer' }}
                             >
@@ -1566,14 +1514,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     {spaceInfo.owner.name ? spaceInfo.owner.name.charAt(0) : spaceInfo.owner.username.charAt(0)}
                                   </div>
                                   <div>
-                                    <div className={`font-semibold transition-colors duration-300 ${
-                                      isDarkMode ? 'text-gray-100' : 'text-gray-800'
-                                    }`}>
+                                    <div className={`font-semibold transition-colors duration-300 ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                                      }`}>
                                       {spaceInfo.owner.name || spaceInfo.owner.username}
                                     </div>
-                                    <div className={`text-xs transition-colors duration-300 ${
-                                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                                    }`}>
+                                    <div className={`text-xs transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                      }`}>
                                       @{spaceInfo.owner.username}
                                     </div>
                                   </div>
@@ -1597,11 +1543,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 exit="hidden"
                                 whileHover="hover"
                                 custom={index}
-                                className={`p-4 rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 ${
-                                  isDarkMode
+                                className={`p-4 rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 ${isDarkMode
                                     ? 'bg-gray-800/50 border-gray-700'
                                     : 'bg-white border-gray-100'
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center justify-between">
                                   <motion.div
@@ -1615,23 +1560,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                                       {collaborator.user.name ? collaborator.user.name.charAt(0) : collaborator.user.username.charAt(0)}
                                     </div>
                                     <div>
-                                      <div className={`font-semibold transition-colors duration-300 ${
-                                        isDarkMode ? 'text-gray-100' : 'text-gray-800'
-                                      }`}>
+                                      <div className={`font-semibold transition-colors duration-300 ${isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                                        }`}>
                                         {collaborator.user.name || collaborator.user.username}
                                       </div>
-                                      <div className={`text-xs transition-colors duration-300 ${
-                                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                                      }`}>
+                                      <div className={`text-xs transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                        }`}>
                                         @{collaborator.user.username}
                                       </div>
                                     </div>
                                   </motion.div>
-                                  
+
                                   <div className="flex gap-2 items-center">
                                     {canManageCollaborators && (
                                       <div className="relative group">
-                                        <motion.div 
+                                        <motion.div
                                           whileHover={{ scale: 1.05 }}
                                           className={`px-3 py-1 ${getRoleBadgeStyle(collaborator.spaceRole)} text-xs font-medium rounded-full shadow-sm cursor-pointer transition-transform duration-200`}
                                           style={{ cursor: 'pointer' }}
@@ -1640,24 +1583,22 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         </motion.div>
 
                                         {/* Role change dropdown menu */}
-                                        <motion.div 
+                                        <motion.div
                                           initial={{ opacity: 0, scale: 0.95, y: -10 }}
                                           whileHover={{ opacity: 1, scale: 1, y: 0 }}
-                                          className={`absolute right-0 mt-1 w-32 rounded-lg shadow-lg border invisible group-hover:visible transition-all duration-200 z-10 ${
-                                            isDarkMode
+                                          className={`absolute right-0 mt-1 w-32 rounded-lg shadow-lg border invisible group-hover:visible transition-all duration-200 z-10 ${isDarkMode
                                               ? 'bg-gray-800 border-gray-600'
                                               : 'bg-white border-gray-100'
-                                          }`}
+                                            }`}
                                         >
                                           <div className="py-1">
                                             <motion.button
                                               whileHover={{ x: 5 }}
                                               onClick={() => handleUpdateCollaboratorRole(collaborator.user.id, 'VIEWER')}
-                                              className={`block w-full text-left px-4 py-2 text-xs transition-colors duration-200 ${
-                                                isDarkMode
+                                              className={`block w-full text-left px-4 py-2 text-xs transition-colors duration-200 ${isDarkMode
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
-                                              }`}
+                                                }`}
                                               style={{ cursor: 'pointer' }}
                                             >
                                               Viewer
@@ -1665,11 +1606,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                                             <motion.button
                                               whileHover={{ x: 5 }}
                                               onClick={() => handleUpdateCollaboratorRole(collaborator.user.id, 'EDITOR')}
-                                              className={`block w-full text-left px-4 py-2 text-xs transition-colors duration-200 ${
-                                                isDarkMode
+                                              className={`block w-full text-left px-4 py-2 text-xs transition-colors duration-200 ${isDarkMode
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
-                                              }`}
+                                                }`}
                                               style={{ cursor: 'pointer' }}
                                             >
                                               Editor
@@ -1677,11 +1617,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                                             <motion.button
                                               whileHover={{ x: 5 }}
                                               onClick={() => handleUpdateCollaboratorRole(collaborator.user.id, 'ADMIN')}
-                                              className={`block w-full text-left px-4 py-2 text-xs transition-colors duration-200 ${
-                                                isDarkMode
+                                              className={`block w-full text-left px-4 py-2 text-xs transition-colors duration-200 ${isDarkMode
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
-                                              }`}
+                                                }`}
                                               style={{ cursor: 'pointer' }}
                                             >
                                               Admin
@@ -1698,11 +1637,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         whileHover="hover"
                                         whileTap="tap"
                                         onClick={() => handleRemoveCollaborator(collaborator.user.id)}
-                                        className={`p-1 rounded-full transition-colors duration-200 ${
-                                          isDarkMode
+                                        className={`p-1 rounded-full transition-colors duration-200 ${isDarkMode
                                             ? 'text-gray-400 hover:text-red-400 hover:bg-red-900/20'
                                             : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-                                        }`}
+                                          }`}
                                         title="Remove collaborator"
                                         style={{ cursor: 'pointer' }}
                                       >
@@ -1716,21 +1654,19 @@ const Sidebar: React.FC<SidebarProps> = ({
                           </AnimatePresence>
 
                           {collaborators.length === 0 && (
-                            <motion.div 
+                            <motion.div
                               initial={{ opacity: 0, y: 20 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: 0.2 }}
                               className="text-center py-12"
                             >
                               <div className="text-6xl mb-4">👥</div>
-                              <div className={`font-medium mb-2 transition-colors duration-300 ${
-                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                              }`}>
+                              <div className={`font-medium mb-2 transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
                                 No collaborators yet
                               </div>
-                              <div className={`text-xs transition-colors duration-300 ${
-                                isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                              }`}>
+                              <div className={`text-xs transition-colors duration-300 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
                                 {canManageCollaborators
                                   ? "Add collaborators using the form above"
                                   : "No one has been invited to collaborate yet"

@@ -1,4 +1,3 @@
-// src/pages/Analytics.tsx
 import React, { useState } from 'react';
 import { ChartBarIcon, EyeIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import { useApi } from '../hooks/useApi';

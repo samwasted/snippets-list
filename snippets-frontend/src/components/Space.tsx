@@ -38,8 +38,8 @@ interface Space {
   isPublic: boolean;
   ownerId: string;
   snippets?: Snippet[];
-  createdAt: Date; 
-  updatedAt: Date; 
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // API utilities
@@ -163,7 +163,7 @@ export default function Space() {
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const snippet = snippets.find(s => s.id === active.id);
-    
+
     if (snippet) {
       setActiveSnippet(snippet);
       setDraggedSnippetId(active.id as string);
@@ -173,15 +173,15 @@ export default function Space() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, delta } = event;
-    
+
     if (delta.x !== 0 || delta.y !== 0) {
       // Apply scale compensation to delta coordinates
       const scaledDeltaX = delta.x / scale;
       const scaledDeltaY = delta.y / scale;
-      
+
       moveSnippet(active.id as string, scaledDeltaX, scaledDeltaY);
     }
-    
+
     setActiveSnippet(null);
     setDraggedSnippetId(null);
     setIsSpaceDragDisabled(false); // Re-enable space dragging
@@ -290,7 +290,7 @@ export default function Space() {
   // Canvas panning logic with dnd-kit awareness
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isSpaceDragDisabled || draggedSnippetId) return; // Don't pan during snippet drag
-    
+
     const target = e.target as HTMLElement;
     const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
 
@@ -318,7 +318,7 @@ export default function Space() {
   // Touch handlers with dnd-kit awareness
   const handleTouchStart = (e: React.TouchEvent) => {
     if (isSpaceDragDisabled || draggedSnippetId) return;
-    
+
     if (e.touches.length !== 1) return;
 
     const touch = e.touches[0];
@@ -815,10 +815,10 @@ export default function Space() {
 
     const newSnippetData = {
       title: `Box`,
-      description: "Click to edit this snippet",
+      description: "Double-click to edit this snippet",
       code: "// Add your code here",
       tags: [],
-      color: colors[Math.ceil(Math.random()*10)],
+      color: colors[Math.ceil(Math.random() * 10)],
       x: Math.round(Math.random() * 400 + 200),
       y: Math.round(Math.random() * 400 + 200),
       spaceId: spaceId
@@ -1064,8 +1064,8 @@ export default function Space() {
     });
   };
 
-  const canEdit = userRole === 'OWNER' || 
-    userRole === 'EDITOR' || 
+  const canEdit = userRole === 'OWNER' ||
+    userRole === 'EDITOR' ||
     userRole === 'ADMIN' ||
     userPermissions?.allowed ||
     userPermissions?.isOwner ||
@@ -1107,8 +1107,8 @@ export default function Space() {
         <div className="flex flex-col h-full">
           {/* Header with Back Button and Controls */}
           <div className={`border-b p-3 sm:p-4 transition-colors duration-300 ${isDarkMode
-              ? 'bg-gray-800 border-gray-700'
-              : 'bg-white border-gray-200'
+            ? 'bg-gray-800 border-gray-700'
+            : 'bg-white border-gray-200'
             }`}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -1116,8 +1116,8 @@ export default function Space() {
                 <button
                   onClick={() => navigate('/dashboard')}
                   className={`p-2 rounded-md transition-colors cursor-pointer duration-300 ${isDarkMode
-                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
                     }`}
                   title="Back to dashboard"
                 >
@@ -1143,8 +1143,8 @@ export default function Space() {
                 <button
                   onClick={toggleDarkMode}
                   className={`p-2 rounded-md cursor-pointer transition-colors duration-300 ${isDarkMode
-                      ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                 >
@@ -1165,8 +1165,8 @@ export default function Space() {
                   <button
                     onClick={() => zoom(-0.2)}
                     className={`p-1 rounded cursor-pointer transition-colors duration-300 ${isDarkMode
-                        ? 'text-gray-300 hover:text-white hover:bg-gray-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                       }`}
                     title="Zoom out"
                   >
@@ -1181,8 +1181,8 @@ export default function Space() {
                   <button
                     onClick={() => zoom(0.2)}
                     className={`p-1 rounded cursor-pointer transition-colors duration-300 ${isDarkMode
-                        ? 'text-gray-300 hover:text-white hover:bg-gray-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                       }`}
                     title="Zoom in"
                   >
@@ -1195,15 +1195,14 @@ export default function Space() {
                 {/* Space Drag Toggle */}
                 <button
                   onClick={() => setIsSpaceDragDisabled(!isSpaceDragDisabled)}
-                  className={`p-2 rounded-md cursor-pointer transition-colors duration-300 ${
-                    isSpaceDragDisabled
+                  className={`p-2 rounded-md cursor-pointer transition-colors duration-300 ${isSpaceDragDisabled
                       ? isDarkMode
                         ? 'bg-red-600 text-white hover:bg-red-700'
                         : 'bg-red-500 text-white hover:bg-red-600'
                       : isDarkMode
-                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                  }`}
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                    }`}
                   title={isSpaceDragDisabled ? 'Enable space dragging' : 'Disable space dragging'}
                 >
                   {isSpaceDragDisabled ? (
@@ -1235,8 +1234,8 @@ export default function Space() {
                 <button
                   onClick={addSnippet}
                   className={`px-3 sm:px-4 cursor-pointer py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
-                      : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
                     }`}
                   disabled={!canEdit}
                 >
@@ -1247,20 +1246,23 @@ export default function Space() {
                 <button
                   onClick={fetchSpaceData}
                   className={`px-3 sm:px-4 cursor-pointer py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 ${isDarkMode
-                      ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'bg-green-600 text-white hover:bg-green-700'
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-green-600 text-white hover:bg-green-700'
                     }`}
                 >
                   <span className="hidden sm:inline">Refresh</span>
-                  <span className="sm:hidden">â†»</span>
+                  <span className="sm:hidden"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+                  </svg></span>
                 </button>
 
                 {/* Sidebar Toggle */}
                 <button
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                   className={`p-2 rounded-md transition-all cursor-pointer duration-300 ease-in-out transform hover:scale-105 ${isDarkMode
-                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
                     }`}
                   title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
                 >
@@ -1295,11 +1297,10 @@ export default function Space() {
           >
             <motion.div
               ref={canvasRef}
-              className={`absolute inset-0 ${
-                isSpaceDragDisabled || draggedSnippetId
-                  ? 'cursor-default' 
+              className={`absolute inset-0 ${isSpaceDragDisabled || draggedSnippetId
+                  ? 'cursor-default'
                   : 'cursor-grab active:cursor-grabbing'
-              }`}
+                }`}
               style={{
                 transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
                 transformOrigin: '0 0',
@@ -1321,7 +1322,7 @@ export default function Space() {
                     linear-gradient(90deg, ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px)
                   `,
                   backgroundSize: `${25 * scale}px ${25 * scale}px`,
-                  backgroundPosition: `${(panX)% (25 * scale)}px ${(panY)% (25 * scale)}px`
+                  backgroundPosition: `${(panX) % (25 * scale)}px ${(panY) % (25 * scale)}px`
                 }}
               />
 
@@ -1348,8 +1349,8 @@ export default function Space() {
                   <button
                     onClick={addSnippet}
                     className={`px-6 py-3 rounded-lg font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
-                        ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
-                        : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
                       }`}
                     disabled={!userPermissions?.allowed}
                   >
@@ -1363,7 +1364,7 @@ export default function Space() {
 
         {/* REMOVED: Drag Overlay section has been completely removed */}
         {/* This eliminates the duplicate box appearance during drag operations */}
-        
+
       </DndContext>
 
       {/* Sidebar */}
@@ -1427,8 +1428,8 @@ export default function Space() {
       {tagColorMenu.show && (
         <div
           className={`fixed rounded-lg shadow-lg border p-2 z-50 transition-colors duration-300 ${isDarkMode
-              ? 'bg-gray-800 border-gray-600'
-              : 'bg-white border-gray-200'
+            ? 'bg-gray-800 border-gray-600'
+            : 'bg-white border-gray-200'
             }`}
           style={{ left: tagColorMenu.x, top: tagColorMenu.y }}
         >
