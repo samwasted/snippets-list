@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -145,6 +145,52 @@ const buttonVariants = {
     scale: 0.95,
     transition: { duration: 0.1 }
   }
+};
+
+// Custom hook for touch and hold drag functionality
+const useTouchHoldDrag = (onDragStart: () => void, delay: number = 500) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startPositionRef = useRef<{ x: number; y: number } | null>(null);
+
+  const startHold = useCallback((clientX: number, clientY: number) => {
+    startPositionRef.current = { x: clientX, y: clientY };
+    setIsHolding(true);
+    
+    timeoutRef.current = setTimeout(() => {
+      setIsDragging(true);
+      onDragStart();
+    }, delay);
+  }, [onDragStart, delay]);
+
+  const cancelHold = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setIsHolding(false);
+    setIsDragging(false);
+    startPositionRef.current = null;
+  }, []);
+
+  const checkMovement = useCallback((clientX: number, clientY: number) => {
+    if (!startPositionRef.current) return false;
+    
+    const deltaX = Math.abs(clientX - startPositionRef.current.x);
+    const deltaY = Math.abs(clientY - startPositionRef.current.y);
+    const threshold = 10; // pixels
+    
+    return deltaX > threshold || deltaY > threshold;
+  }, []);
+
+  return {
+    isDragging,
+    isHolding,
+    startHold,
+    cancelHold,
+    checkMovement
+  };
 };
 
 const getAuthHeaders = () => {
@@ -483,6 +529,176 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  // Enhanced Drag Item Component with Touch Hold
+  const DragItem: React.FC<{ 
+    snippet: Snippet; 
+    index: number; 
+    onDragReorder: (startIndex: number, endIndex: number) => void 
+  }> = ({ snippet, index, onDragReorder }) => {
+    const {
+      isDragging,
+      isHolding,
+      startHold,
+      cancelHold,
+      checkMovement
+    } = useTouchHoldDrag(() => {
+      // Drag start callback
+    }, 500);
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+      if (!canEdit) return;
+      
+      e.preventDefault();
+      const { clientX, clientY } = e;
+      startHold(clientX, clientY);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+      if (isHolding && !isDragging) {
+        const { clientX, clientY } = e;
+        if (checkMovement(clientX, clientY)) {
+          cancelHold();
+        }
+      }
+    };
+
+    const handlePointerUp = () => {
+      cancelHold();
+    };
+
+    return (
+      <motion.div
+        key={snippet.id}
+        layout
+        variants={listItemVariants}
+        initial="hidden"
+        animate="visible"
+        exit="hidden"
+        whileHover="hover"
+        custom={index}
+        className="group"
+      >
+        <div
+          onClick={() => onNavigateToBox(snippet)}
+          className={`flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 border shadow-sm hover:shadow-lg ${
+            isDarkMode
+              ? 'hover:bg-gradient-to-r hover:from-purple-900/30 hover:to-pink-900/30 border-gray-700 bg-gray-800/50'
+              : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-gray-100 bg-white'
+          }`}
+          // Add pointer cursor for clickable elements
+          style={{ cursor: 'pointer' }}
+        >
+          {canEdit && (
+            <motion.div
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              className={`flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity p-2 -m-2 rounded-lg ${
+                isDarkMode
+                  ? 'hover:bg-gradient-to-r hover:from-purple-800/30 hover:to-pink-800/30'
+                  : 'hover:bg-gradient-to-r hover:from-purple-100 hover:to-pink-100'
+              }`}
+              // Enhanced cursor states for drag handle
+              style={{ 
+                cursor: isHolding ? 'grabbing' : 'grab',
+                touchAction: 'none'
+              }}
+              animate={{
+                scale: isHolding ? 1.1 : 1,
+                backgroundColor: isHolding ? 'rgba(147, 197, 253, 0.2)' : 'transparent'
+              }}
+              transition={{ duration: 0.2 }}
+            >
+              <GripVertical className={`w-4 h-4 transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
+              }`} />
+              {isHolding && (
+                <motion.div
+                  className="absolute inset-0 bg-blue-400/20 rounded-lg"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                />
+              )}
+            </motion.div>
+          )}
+          
+          <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <div className="flex items-center gap-3">
+              <div className={`w-6 h-6 rounded-lg ${snippet.color} shadow-lg flex-shrink-0`} />
+              <div className="flex-1 min-w-0">
+                <div className={`font-semibold truncate text-sm transition-colors duration-300 ${
+                  isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                }`}>
+                  {snippet.title}
+                </div>
+                <div className={`text-xs mt-0.5 flex items-center gap-2 transition-colors duration-300 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  <span>x: {Math.round(snippet.x)}, y: {Math.round(snippet.y)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className={`text-xs pl-9 transition-colors duration-300 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Last edited: {formatDate(snippet.updatedAt)}
+            </div>
+
+            {(snippet.tags?.length ?? 0) > 0 && (
+              <div className="flex flex-wrap gap-1 pl-9">
+                {snippet.tags.map((tag, tagIndex) => (
+                  <motion.span
+                    key={tag}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: tagIndex * 0.05 }}
+                    onContextMenu={(e) => onTagRightClick(e, tag)}
+                    className={`inline-block text-xs px-2 py-1 rounded-full cursor-context-menu transition-all duration-200 shadow-sm hover:scale-105 ${
+                      isDarkMode
+                        ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-200 hover:from-gray-600 hover:to-gray-500'
+                        : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 hover:from-gray-200 hover:to-gray-300'
+                    }`}
+                    // Add pointer cursor for interactive tags
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {tag}
+                  </motion.span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pl-9 pt-2">
+              <div className="flex gap-2">
+                {(userRole === "ADMIN" || userRole === "EDITOR" || userRole === "OWNER") && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteSnippet(snippet.id);
+                    }}
+                    className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
+                    // Add pointer cursor for delete button
+                    style={{ cursor: 'pointer' }}
+                  >
+                    Delete
+                  </motion.button>
+                )}
+              </div>
+              <div className={`text-xs transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
+              }`}>
+                {snippet.createdAt ? new Date(snippet.createdAt).toLocaleDateString() : "Unknown date"}
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
   return (
     <>
       {/* Main Sidebar with Enhanced Animations */}
@@ -558,6 +774,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 title="Close Sidebar"
                 onTouchStart={handleSidebarTouch}
                 onMouseDown={handleSidebarMouse}
+                // Add pointer cursor
+                style={{ cursor: 'pointer' }}
               >
                 <X className="w-5 h-5" />
               </motion.button>
@@ -577,6 +795,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
               onTouchStart={handleSidebarTouch}
               onMouseDown={handleSidebarMouse}
+              // Add pointer cursor
+              style={{ cursor: 'pointer' }}
             >
               <motion.div
                 animate={{ rotate: isCollapsed ? 180 : 0 }}
@@ -624,6 +844,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                   onClick={handleNavigateToAnalytics}
                   className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-md hover:shadow-lg transition-all duration-200"
                   title="View Analytics"
+                  // Add pointer cursor
+                  style={{ cursor: 'pointer' }}
                 >
                   <BarChart className="w-5 h-5" />
                 </motion.button>
@@ -640,6 +862,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md hover:shadow-lg transition-all duration-200"
                 title="View Collaborators"
+                // Add pointer cursor
+                style={{ cursor: 'pointer' }}
               >
                 <Users className="w-5 h-5" />
               </motion.button>
@@ -683,6 +907,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => onNavigateToBox(snippet)}
                       className={`w-full h-8 rounded-lg cursor-pointer ${snippet.color} opacity-75 hover:opacity-100 transition-all duration-200 shadow-md`}
                       title={snippet.title}
+                      // Add pointer cursor
+                      style={{ cursor: 'pointer' }}
                     />
                   ))}
                 </AnimatePresence>
@@ -733,6 +959,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                         ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/10'
                         : 'text-gray-600 hover:text-purple-500 hover:bg-purple-50/50'
                   }`}
+                  // Add pointer cursor
+                  style={{ cursor: 'pointer' }}
                 >
                   Snippets
                 </motion.button>
@@ -750,6 +978,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                         ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/10'
                         : 'text-gray-600 hover:text-purple-500 hover:bg-purple-50/50'
                   }`}
+                  // Add pointer cursor
+                  style={{ cursor: 'pointer' }}
                 >
                   <Users className="w-4 h-4" />
                   Collaborators
@@ -773,6 +1003,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                     whileTap="tap"
                     onClick={handleNavigateToAnalytics}
                     className="w-full py-2 px-4 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium"
+                    // Add pointer cursor
+                    style={{ cursor: 'pointer' }}
                   >
                     <BarChart className="w-4 h-4" />
                     View Analytics
@@ -813,6 +1045,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                           ? 'bg-gradient-to-r from-green-500 to-emerald-500'
                           : isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
                       }`}
+                      // Add pointer cursor
+                      style={{ cursor: 'pointer' }}
                     >
                       <motion.span
                         animate={{ x: isSpacePublic ? 24 : 4 }}
@@ -894,6 +1128,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                               ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
                               : 'border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 text-gray-900'
                           }`}
+                          // Add text cursor
+                          style={{ cursor: 'text' }}
                         />
                         <AnimatePresence>
                           {searchQuery && (
@@ -909,6 +1145,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                   ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-200'
                                   : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
                               }`}
+                              // Add pointer cursor
+                              style={{ cursor: 'pointer' }}
                             >
                               <X className="w-4 h-4" />
                             </motion.button>
@@ -941,6 +1179,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                             whileTap={{ scale: 0.95 }}
                             onClick={onClearAllFilters}
                             className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                            // Add pointer cursor
+                            style={{ cursor: 'pointer' }}
                           >
                             Clear All
                           </motion.button>
@@ -978,6 +1218,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                       : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
                                 }`}
                                 title={userRole !== 'VIEWER' ? "Right-click to change color" : ""}
+                                // Add pointer cursor
+                                style={{ cursor: 'pointer' }}
                               >
                                 {tag}
                                 <span className="ml-1.5 opacity-70">({snippetCount})</span>
@@ -1022,7 +1264,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       </motion.div>
                     </motion.div>
 
-                    {/* Snippet List */}
+                    {/* Snippet List with Enhanced Drag Items */}
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -1046,134 +1288,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                               return aIndex - bIndex;
                             })
                             .map((snippet, index) => (
-                              <motion.div
+                              <DragItem
                                 key={snippet.id}
-                                layout
-                                variants={listItemVariants}
-                                initial="hidden"
-                                animate="visible"
-                                exit="hidden"
-                                whileHover="hover"
-                                custom={index}
-                                className="group"
-                              >
-                                <div
-                                  onClick={() => onNavigateToBox(snippet)}
-                                  className={`flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 border shadow-sm hover:shadow-lg ${
-                                    isDarkMode
-                                      ? 'hover:bg-gradient-to-r hover:from-purple-900/30 hover:to-pink-900/30 border-gray-700 bg-gray-800/50'
-                                      : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-gray-100 bg-white'
-                                  }`}
-                                >
-                                  {canEdit && (
-                                    <motion.div
-                                      drag="y"
-                                      dragConstraints={{ top: 0, bottom: 0 }}
-                                      dragElastic={0.0}
-                                      onDragEnd={(_, info) => {
-                                        const draggedDistance = info.offset.y;
-                                        const itemHeight = 90;
-                                        const newIndex = Math.round(draggedDistance / itemHeight) + index;
-                                        const clampedIndex = Math.max(0, Math.min(filteredSnippets.length - 1, newIndex));
-
-                                        if (clampedIndex !== index) {
-                                          const originalIndex = snippetOrder.indexOf(snippet.id);
-                                          const targetSnippet = filteredSnippets[clampedIndex];
-                                          const targetIndex = snippetOrder.indexOf(targetSnippet.id);
-
-                                          if (originalIndex !== -1 && targetIndex !== -1) {
-                                            onReorderSnippets(originalIndex, targetIndex);
-                                          }
-                                        }
-                                      }}
-                                      dragTransition={{
-                                        bounceStiffness: 600,
-                                        bounceDamping: 20,
-                                        power: 0.3,
-                                        timeConstant: 200
-                                      }}
-                                      whileDrag={{ scale: 1.1, zIndex: 1000 }}
-                                      className={`flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-2 -m-2 rounded-lg ${
-                                        isDarkMode
-                                          ? 'hover:bg-gradient-to-r hover:from-purple-800/30 hover:to-pink-800/30'
-                                          : 'hover:bg-gradient-to-r hover:from-purple-100 hover:to-pink-100'
-                                      }`}
-                                    >
-                                      <GripVertical className={`w-4 h-4 transition-colors duration-300 ${
-                                        isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                                      }`} />
-                                    </motion.div>
-                                  )}
-                                  
-                                  <div className="flex flex-col gap-2 flex-1 min-w-0">
-                                    <div className="flex items-center gap-3">
-                                      <div className={`w-6 h-6 rounded-lg ${snippet.color} shadow-lg flex-shrink-0`} />
-                                      <div className="flex-1 min-w-0">
-                                        <div className={`font-semibold truncate text-sm transition-colors duration-300 ${
-                                          isDarkMode ? 'text-gray-100' : 'text-gray-800'
-                                        }`}>
-                                          {snippet.title}
-                                        </div>
-                                        <div className={`text-xs mt-0.5 flex items-center gap-2 transition-colors duration-300 ${
-                                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>
-                                          <span>x: {Math.round(snippet.x)}, y: {Math.round(snippet.y)}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className={`text-xs pl-9 transition-colors duration-300 ${
-                                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                                    }`}>
-                                      Last edited: {formatDate(snippet.updatedAt)}
-                                    </div>
-
-                                    {(snippet.tags?.length ?? 0) > 0 && (
-                                      <div className="flex flex-wrap gap-1 pl-9">
-                                        {snippet.tags.map((tag, tagIndex) => (
-                                          <motion.span
-                                            key={tag}
-                                            initial={{ opacity: 0, scale: 0.8 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            transition={{ delay: tagIndex * 0.05 }}
-                                            onContextMenu={(e) => onTagRightClick(e, tag)}
-                                            className={`inline-block text-xs px-2 py-1 rounded-full cursor-context-menu transition-all duration-200 shadow-sm hover:scale-105 ${
-                                              isDarkMode
-                                                ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-200 hover:from-gray-600 hover:to-gray-500'
-                                                : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 hover:from-gray-200 hover:to-gray-300'
-                                            }`}
-                                          >
-                                            {tag}
-                                          </motion.span>
-                                        ))}
-                                      </div>
-                                    )}
-
-                                    <div className="flex items-center justify-between pl-9 pt-2">
-                                      <div className="flex gap-2">
-                                        {(userRole === "ADMIN" || userRole === "EDITOR" || userRole === "OWNER") && (
-                                          <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              onDeleteSnippet(snippet.id);
-                                            }}
-                                            className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
-                                          >
-                                            Delete
-                                          </motion.button>
-                                        )}
-                                      </div>
-                                      <div className={`text-xs transition-colors duration-300 ${
-                                        isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                                      }`}>
-                                        {snippet.createdAt ? new Date(snippet.createdAt).toLocaleDateString() : "Unknown date"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </motion.div>
+                                snippet={snippet}
+                                index={index}
+                                onDragReorder={onReorderSnippets}
+                              />
                             ))}
                         </AnimatePresence>
 
@@ -1312,6 +1432,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                       : 'border-gray-200 bg-white text-gray-900'
                                   }`}
                                   disabled={isAddingCollaborator}
+                                  // Add text cursor
+                                  style={{ cursor: 'text' }}
                                 />
                               </div>
 
@@ -1324,6 +1446,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     : 'border-gray-200 bg-white text-gray-900'
                                 }`}
                                 disabled={isAddingCollaborator}
+                                // Add pointer cursor
+                                style={{ cursor: 'pointer' }}
                               >
                                 <option value="VIEWER">Viewer</option>
                                 <option value="EDITOR">Editor</option>
@@ -1338,6 +1462,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 whileTap="tap"
                                 className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
                                 disabled={isAddingCollaborator || !newUsername.trim()}
+                                // Add pointer cursor when enabled
+                                style={{ cursor: isAddingCollaborator || !newUsername.trim() ? 'not-allowed' : 'pointer' }}
                               >
                                 {isAddingCollaborator ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1416,6 +1542,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                   : 'bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200 hover:border-purple-300'
                               }`}
                               onClick={() => handleNavigateToProfile(spaceInfo.owner.username)}
+                              // Add pointer cursor
+                              style={{ cursor: 'pointer' }}
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
@@ -1466,6 +1594,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     onClick={() => handleNavigateToProfile(collaborator.user.username)}
                                     whileHover={{ x: 5 }}
                                     transition={{ duration: 0.2 }}
+                                    // Add pointer cursor
+                                    style={{ cursor: 'pointer' }}
                                   >
                                     <div className="w-10 h-10 rounded-full bg-gradient-to-r from-gray-500 to-gray-600 text-white flex items-center justify-center text-lg font-bold shadow-sm">
                                       {collaborator.user.name ? collaborator.user.name.charAt(0) : collaborator.user.username.charAt(0)}
@@ -1490,6 +1620,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         <motion.div 
                                           whileHover={{ scale: 1.05 }}
                                           className={`px-3 py-1 ${getRoleBadgeStyle(collaborator.spaceRole)} text-xs font-medium rounded-full shadow-sm cursor-pointer transition-transform duration-200`}
+                                          // Add pointer cursor
+                                          style={{ cursor: 'pointer' }}
                                         >
                                           {collaborator.spaceRole}
                                         </motion.div>
@@ -1513,6 +1645,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
                                               }`}
+                                              // Add pointer cursor
+                                              style={{ cursor: 'pointer' }}
                                             >
                                               Viewer
                                             </motion.button>
@@ -1524,6 +1658,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
                                               }`}
+                                              // Add pointer cursor
+                                              style={{ cursor: 'pointer' }}
                                             >
                                               Editor
                                             </motion.button>
@@ -1535,6 +1671,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
                                               }`}
+                                              // Add pointer cursor
+                                              style={{ cursor: 'pointer' }}
                                             >
                                               Admin
                                             </motion.button>
@@ -1556,6 +1694,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                             : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
                                         }`}
                                         title="Remove collaborator"
+                                        // Add pointer cursor
+                                        style={{ cursor: 'pointer' }}
                                       >
                                         <X className="w-4 h-4" />
                                       </motion.button>
@@ -1640,6 +1780,27 @@ const Sidebar: React.FC<SidebarProps> = ({
         
         .scrollbar::-webkit-scrollbar-thumb:hover {
           transform: scale(1.1);
+        }
+        
+        /* Pointer cursor styles */
+        .cursor-pointer {
+          cursor: pointer !important;
+        }
+        
+        .cursor-grab {
+          cursor: grab !important;
+        }
+        
+        .cursor-grabbing {
+          cursor: grabbing !important;
+        }
+        
+        .cursor-text {
+          cursor: text !important;
+        }
+        
+        .cursor-not-allowed {
+          cursor: not-allowed !important;
         }
       `}</style>
     </>

@@ -54,6 +54,7 @@ const Box: React.FC<BoxProps> = ({
   });
 
   // Convert dnd-kit transform to CSS transform with scale compensation
+  // FIXED: Removed opacity hiding - keep the original element visible during drag
   const style = {
     transform: CSS.Transform.toString({
       x: transform ? transform.x / scale : 0,
@@ -68,9 +69,10 @@ const Box: React.FC<BoxProps> = ({
     willChange: isDragging || isHovered ? 'transform' : 'auto',
     zIndex: isDragging ? 1000 : isHovered ? 10 : 1,
     touchAction: 'none'
+    // REMOVED: opacity: isDragging ? 0 : 1
   };
 
-  // Code file detection (keeping your existing logic)
+  // Code file detection
   const isCodeFile = (file: File) => {
     const codeExtensions = [
       '.js', '.jsx', '.ts', '.tsx',
@@ -88,7 +90,7 @@ const Box: React.FC<BoxProps> = ({
     return codeExtensions.some(ext => fileName.endsWith(ext));
   };
 
-  // Language detection (keeping your existing logic)
+  // Language detection
   const detectLanguageFromExtension = (fileName: string) => {
     const extensionMap: Record<string, string> = {
       '.js': 'javascript', '.jsx': 'javascript', '.ts': 'typescript', '.tsx': 'typescript',
@@ -108,7 +110,7 @@ const Box: React.FC<BoxProps> = ({
     return extension && extensionMap[extension] ? extensionMap[extension] : 'text';
   };
 
-  // File reading (keeping your existing logic)
+  // File reading
   const readFileContent = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -172,7 +174,7 @@ const Box: React.FC<BoxProps> = ({
       } ${
         isDragOver ? 'ring-2 ring-white ring-opacity-50' : ''
       } ${
-        isDragging ? 'z-50 shadow-2xl scale-110 rotate-3' : isHovered ? 'shadow-2xl scale-105 -rotate-1' : 'hover:shadow-xl hover:scale-105 hover:-rotate-1'
+        isDragging ? 'z-50 shadow-2xl scale-100 rotate-3' : isHovered ? 'shadow-2xl scale-105 -rotate-1' : 'hover:shadow-xl hover:scale-105 hover:-rotate-1'
       }`}
       
       style={style}
@@ -189,7 +191,6 @@ const Box: React.FC<BoxProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Rest of your component JSX remains the same */}
       <div className="p-3 flex-1 flex flex-col relative">
         <div className={`font-semibold text-center mb-2 truncate transition-all duration-300 ${
           isDarkMode ? 'text-white' : 'text-white'
@@ -262,7 +263,7 @@ const Box: React.FC<BoxProps> = ({
           </div>
         )}
 
-        {/* Drag indicator */}
+        {/* Drag indicator - enhanced during actual drag */}
         {isDragging && (
           <div className="absolute -top-2 -left-2 w-3 h-3 bg-white rounded-full shadow-lg animate-pulse ring-2 ring-blue-400" />
         )}

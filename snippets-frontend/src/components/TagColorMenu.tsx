@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { colors, colorNames } from "./types";
 
 interface TagColorMenuProps {
@@ -7,7 +7,7 @@ interface TagColorMenuProps {
   y: number;
   onColorSelect: (tag: string, color: string) => void;
   onClose: () => void;
-  isDarkMode?: boolean; // Add dark mode prop
+  isDarkMode?: boolean;
 }
 
 const TagColorMenu: React.FC<TagColorMenuProps> = ({ 
@@ -18,18 +18,69 @@ const TagColorMenu: React.FC<TagColorMenuProps> = ({
   onClose,
   isDarkMode = false
 }) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ left: x, top: y, transform: 'translate(-50%, -10px)' });
+
+  useEffect(() => {
+    if (!menuRef.current) return;
+
+    const menu = menuRef.current;
+    const rect = menu.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let newLeft = x;
+    let newTop = y;
+    let transform = 'translate(-50%, -10px)';
+
+    // Check horizontal boundaries
+    const menuWidth = rect.width || 200; // fallback width
+    const leftEdge = x - menuWidth / 2;
+    const rightEdge = x + menuWidth / 2;
+
+    if (leftEdge < 10) {
+      // Too close to left edge
+      newLeft = 10 + menuWidth / 2;
+      transform = 'translate(-50%, -10px)';
+    } else if (rightEdge > viewportWidth - 10) {
+      // Too close to right edge
+      newLeft = viewportWidth - 10 - menuWidth / 2;
+      transform = 'translate(-50%, -10px)';
+    }
+
+    // Check vertical boundaries
+    const menuHeight = rect.height || 150; // fallback height
+    const topEdge = y - 10;
+    const bottomEdge = y + menuHeight;
+
+    if (topEdge < 10) {
+      // Too close to top edge
+      newTop = y + 20;
+      transform = transform.replace('-10px', '10px');
+    } else if (bottomEdge > viewportHeight - 10) {
+      // Too close to bottom edge
+      newTop = y - menuHeight - 10;
+      transform = transform.replace('-10px', `${menuHeight + 10}px`);
+    }
+
+    setPosition({ left: newLeft, top: newTop, transform });
+  }, [x, y]);
+
   return (
     <div
-      className={`fixed z-[9999] rounded-lg shadow-xl border p-3 transition-colors duration-300 ${
+      ref={menuRef}
+      className={`fixed z-[9999] rounded-lg shadow-xl border p-3 transition-all duration-300 ${
         isDarkMode 
           ? 'bg-gray-800 border-gray-600' 
           : 'bg-white border-gray-200'
       }`}
       style={{
-        left: x,
-        top: y,
-        transform: 'translate(-50%, -10px)',
-        backdropFilter: 'blur(10px)'
+        left: position.left,
+        top: position.top,
+        transform: position.transform,
+        backdropFilter: 'blur(10px)',
+        maxWidth: '90vw', // Ensure it doesn't exceed viewport width
+        maxHeight: '90vh', // Ensure it doesn't exceed viewport height
       }}
       onClick={(e) => e.stopPropagation()}
     >

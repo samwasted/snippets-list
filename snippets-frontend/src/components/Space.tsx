@@ -1114,7 +1114,7 @@ export default function Space() {
                 {/* Back Button */}
                 <button
                   onClick={() => navigate('/dashboard')}
-                  className={`p-2 rounded-md transition-colors duration-300 ${isDarkMode
+                  className={`p-2 rounded-md transition-colors cursor-pointer duration-300 ${isDarkMode
                       ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
                     }`}
@@ -1211,7 +1211,7 @@ export default function Space() {
                     </svg>
                   ) : (
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                   )}
                 </button>
@@ -1251,7 +1251,7 @@ export default function Space() {
                     }`}
                 >
                   <span className="hidden sm:inline">Refresh</span>
-                  <span className="sm:hidden">↻</span>
+                  <span className="sm:hidden">â†»</span>
                 </button>
 
                 {/* Sidebar Toggle */}
@@ -1313,7 +1313,7 @@ export default function Space() {
             >
               {/* Grid Background */}
               <div
-                className="absolute h-5000 w-5000 -inset-2500 opacity-20" //now the grids are fixed
+                className="absolute h-5000 w-5000 -inset-2500 opacity-20"
                 style={{
                   backgroundImage: `
                     linear-gradient(${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px),
@@ -1360,33 +1360,9 @@ export default function Space() {
           </div>
         </div>
 
-        {/* Drag Overlay for better visual feedback */}
-        {activeSnippet && (
-          <div
-            className="fixed pointer-events-none z-50 opacity-80"
-            style={{
-              transform: CSS.Transform.toString({
-                x: 0,
-                y: 0,
-                scaleX: 1,
-                scaleY: 1
-              })
-            }}
-          >
-            <div className={`w-48 h-40 rounded-lg shadow-2xl ${activeSnippet.color} rotate-3 scale-110`}>
-              <div className="p-3">
-                <div className="font-semibold text-white text-center mb-2 truncate">
-                  {activeSnippet.title}
-                </div>
-                {activeSnippet.description && (
-                  <div className="text-xs text-white/90 line-clamp-3">
-                    {activeSnippet.description}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* REMOVED: Drag Overlay section has been completely removed */}
+        {/* This eliminates the duplicate box appearance during drag operations */}
+        
       </DndContext>
 
       {/* Sidebar */}
