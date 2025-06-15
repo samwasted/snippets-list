@@ -21,7 +21,7 @@ importers:
   apps/http:
     dependencies:
       '@prisma/client':
-        specifier: ^6.8.2
+        specifier: ^6.9.0
         version: 6.9.0(prisma@6.9.0(typescript@5.8.3))(typescript@5.8.3)
       '@repo/db':
         specifier: workspace:*
@@ -48,6 +48,9 @@ importers:
         specifier: ^3.25.49
         version: 3.25.49
     devDependencies:
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.15.3
       esbuild:
         specifier: ^0.19.0
         version: 0.19.12
@@ -97,16 +100,16 @@ importers:
       '@prisma/client':
         specifier: ^6.9.0
         version: 6.9.0(prisma@6.9.0(typescript@5.8.3))(typescript@5.8.3)
+    devDependencies:
       '@types/node':
         specifier: ^22.15.3
         version: 22.15.3
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
-    devDependencies:
       prisma:
         specifier: ^6.9.0
         version: 6.9.0(typescript@5.8.3)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
 
   packages/eslint-config:
     devDependencies:
