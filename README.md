@@ -67,6 +67,8 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Collaborator Management**: Add/remove team members with specific roles
 - **WebSocket Status**: Live connection monitoring
 - **Mobile Block Dragging**: Special mobile-optimized controls
+
+  
 ![livecollaboration](https://github.com/user-attachments/assets/deb39d33-6997-4198-a773-ad4f50ad0bde)
 <br>
 *Live collaboration in action*
