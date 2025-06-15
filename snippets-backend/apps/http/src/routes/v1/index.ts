@@ -18,7 +18,6 @@ router.post("/signup", async (req, res) => { //validated
     }
 
     const hashedPassword = await hash(parsedData.data.password)
-
     try {
         const user = await client.user.create({
             data: {

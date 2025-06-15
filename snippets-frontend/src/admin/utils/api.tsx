@@ -1,4 +1,3 @@
-// src/utils/api.ts
 import type { 
   User, 
   UsersResponse, 
@@ -10,8 +9,7 @@ import type {
   AnalyticsParams
 } from "../types/admin";
 
-const API_BASE = 'http://localhost:3000/api/v1/admin';
-
+const API_BASE = `${import.meta.env.VITE_HTTP_URL}/api/v1/admin`
 export class ApiClient {
   private getAuthToken(): string | null {
     return localStorage.getItem('token');

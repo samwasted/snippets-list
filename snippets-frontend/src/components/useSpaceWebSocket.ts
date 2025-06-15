@@ -493,7 +493,7 @@ export const useSpaceWebSocket = (options: UseSpaceWebSocketOptions = {}): UseSp
             setUserRole(null);
             joinRequestSentRef.current = false;
 
-            const wsUrl = `ws://localhost:3001/ws/space/${spaceId}`;
+            const wsUrl = `${import.meta.env.VITE_WS_URL}/space/${spaceId}`;
             console.log('Connecting to:', wsUrl);
             
             const ws = new WebSocket(wsUrl);

@@ -80,7 +80,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       }
 
       // Check if there's a valid session by calling the metadata endpoint
-      const response = await axios.get('http://localhost:3000/api/v1/user/metadata', {
+      const response = await axios.get(`${import.meta.env.VITE_HTTP_URL}/api/v1/user/metadata`, {
         timeout: 5000,
       });
 
@@ -109,11 +109,11 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const response = await axios.post('http://localhost:3000/api/v1/signin', {
+            console.log("VITE_HTTP_URL:", import.meta.env.VITE_HTTP_URL);
+      const response = await axios.post(`${import.meta.env.VITE_HTTP_URL}/api/v1/signin`, {
         username,
         password
       });
-
       if (response.status === 200 && response.data.token) {
         // Store JWT token in localStorage
         localStorage.setItem('token', response.data.token);
@@ -124,6 +124,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       }
       return false;
     } catch (error) {
+
       console.error('Login failed:', error);
       return false;
     }
@@ -131,7 +132,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   const signup = async (username: string, password: string): Promise<boolean> => {
   try {
-    const response = await axios.post('http://localhost:3000/api/v1/signup', {
+    const response = await axios.post(`${import.meta.env.VITE_HTTP_URL}/api/v1/signup`, {
       username,
       password,
       name: username // Add name field as required by backend
@@ -152,7 +153,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const logout = async () => {
     try {
       // Call logout endpoint if available (optional)
-      await axios.post('http://localhost:3000/api/v1/logout');
+      await axios.post(`${import.meta.env.VITE_HTTP_URL}/api/v1/logout`);
     } catch (error) {
       console.error('Logout request failed:', error);
     } finally {
