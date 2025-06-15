@@ -87,6 +87,7 @@ export default function Space() {
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSpaceDragDisabled, setIsSpaceDragDisabled] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -196,14 +197,11 @@ export default function Space() {
       setPanStart({ x: panX, y: panY });
 
       if (containerRef.current) {
-        // const rect = containerRef.current.getBoundingClientRect();
-        // console.log('Viewport updated:', rect.width, 'x', rect.height);
         setRefreshKey(prev => prev + 1);
       }
     };
 
     const handleOrientationChange = () => {
-      // console.log('Orientation change detected, resetting touch state');
       setIsDragging(false);
       setDragStart({ x: 0, y: 0 });
       setPanStart({ x: panX, y: panY });
@@ -211,7 +209,6 @@ export default function Space() {
       setTimeout(() => {
         if (containerRef.current) {
           // const rect = containerRef.current.getBoundingClientRect();
-          // console.log('Post-orientation viewport:', rect.width, 'x', rect.height);
         }
       }, 100);
     };
@@ -256,6 +253,8 @@ export default function Space() {
 
   // Mouse event handlers for canvas panning
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (isSpaceDragDisabled) return;
+    
     const target = e.target as HTMLElement;
     const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
 
@@ -267,7 +266,7 @@ export default function Space() {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
+    if (!isDragging || isSpaceDragDisabled) return;
 
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
@@ -317,6 +316,8 @@ export default function Space() {
 
   // Touch event handlers for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (isSpaceDragDisabled) return;
+    
     if (e.touches.length !== 1) return;
 
     const touch = e.touches[0];
@@ -342,7 +343,7 @@ export default function Space() {
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || e.touches.length !== 1) return;
+    if (!isDragging || e.touches.length !== 1 || isSpaceDragDisabled) return;
 
     const touch = e.touches[0];
 
@@ -367,7 +368,7 @@ export default function Space() {
   // Global mouse and touch handlers
   React.useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+      if (!isDragging || isSpaceDragDisabled) return;
 
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
@@ -381,7 +382,7 @@ export default function Space() {
     };
 
     const handleGlobalTouchMove = (e: TouchEvent) => {
-      if (!isDragging || e.touches.length !== 1) return;
+      if (!isDragging || e.touches.length !== 1 || isSpaceDragDisabled) return;
 
       if (!containerRef.current) {
         setIsDragging(false);
@@ -401,7 +402,6 @@ export default function Space() {
     };
 
     const handleOrientationChangeDuringTouch = () => {
-      // console.log('Orientation change during touch, resetting drag state');
       setIsDragging(false);
     };
 
@@ -422,7 +422,7 @@ export default function Space() {
       document.removeEventListener('touchcancel', handleGlobalTouchEnd);
       window.removeEventListener('orientationchange', handleOrientationChangeDuringTouch);
     };
-  }, [isDragging, dragStart, panStart, panX, panY]);
+  }, [isDragging, dragStart, panStart, panX, panY, isSpaceDragDisabled]);
 
   // Move snippet position
   const moveSnippet = async (id: string, deltaX: number, deltaY: number) => {
@@ -446,16 +446,14 @@ export default function Space() {
         body: JSON.stringify({ x: newX, y: newY })
       });
 
-      if (sendSnippetMove && isJoined&& (userRole === 'EDITOR' || userRole === 'OWNER' || userRole === 'ADMIN' || userRole === 'VIEWER')) {
+      if (sendSnippetMove && isJoined && (userRole === 'EDITOR' || userRole === 'OWNER' || userRole === 'ADMIN' || userRole === 'VIEWER')) {
         console.log('Broadcasting snippet movement via WebSocket...');
         await sendSnippetMove({
           snippetId: id,
-          // userRole: userRole,
           x: newX,
           y: newY
         });
       }
-    
 
     } catch (error) {
       console.error("Failed to update snippet position:", error);
@@ -1156,6 +1154,31 @@ export default function Space() {
                 </button>
               </div>
 
+              {/* Space Drag Toggle */}
+              <button
+                onClick={() => setIsSpaceDragDisabled(!isSpaceDragDisabled)}
+                className={`p-2 rounded-md transition-colors duration-300 ${
+                  isSpaceDragDisabled
+                    ? isDarkMode
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'bg-red-500 text-white hover:bg-red-600'
+                    : isDarkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+                title={isSpaceDragDisabled ? 'Enable space dragging' : 'Disable space dragging'}
+              >
+                {isSpaceDragDisabled ? (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                )}
+              </button>
+
               {/* WebSocket Status */}
               <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${connectionStatus.color}`}>
                 <span className="hidden sm:inline">WS: </span>
@@ -1234,7 +1257,11 @@ export default function Space() {
         >
           <motion.div
             ref={canvasRef}
-            className="absolute inset-0 cursor-grab active:cursor-grabbing"
+            className={`absolute inset-0 ${
+              isSpaceDragDisabled 
+                ? 'cursor-default' 
+                : 'cursor-grab active:cursor-grabbing'
+            }`}
             style={{
               transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
               transformOrigin: '0 0',
