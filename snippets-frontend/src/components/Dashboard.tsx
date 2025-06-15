@@ -490,10 +490,10 @@ const Dashboard = () => {
               <button
                 onClick={handleEditProfile}
                 className="flex items-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-300 shadow-lg"
-                title="Edit Profile"
+                title="View Profile"
               >
                 <UserCog className="h-4 w-4" />
-                <span className="hidden sm:inline font-medium">Edit Profile</span>
+                <span className="hidden sm:inline font-medium">Profile</span>
               </button>
               
               <button
@@ -524,7 +524,7 @@ const Dashboard = () => {
               </span>
             </h2>
             <p className="text-xl text-gray-300 font-light">
-              Manage your spaces and snippets from your premium dashboard
+              Manage your spaces from your dashboard
             </p>
           </div>
 

@@ -89,14 +89,16 @@ interface SidebarProps {
 const API_BASE_URL = `${import.meta.env.VITE_HTTP_URL}/api/v1`;
 
 // Animation variants for consistent motion design
+import { easeInOut } from "framer-motion";
+
 const sidebarVariants = {
   collapsed: {
     width: 60,
-    transition: { duration: 0.3, ease: "easeInOut" }
+    transition: { duration: 0.3, ease: easeInOut }
   },
   expanded: {
     width: 360,
-    transition: { duration: 0.3, ease: "easeInOut" }
+    transition: { duration: 0.3, ease: easeInOut }
   }
 };
 
