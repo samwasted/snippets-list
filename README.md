@@ -42,10 +42,13 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Expandable Modals**: Resizable edit interfaces
 - **Smooth Animations**: Framer Motion powered transitions
 - **Vibey UI**: Modern, intuitive design language
+
+
+![darklightmode](https://github.com/user-attachments/assets/b785b5a6-5721-4b66-ba52-f8e61d0b4901)  
+![tagcolormenu](https://github.com/user-attachments/assets/83eb1614-64fc-419b-aac7-42f837424d2a)  
+
 <br>
-![darklightmode](https://github.com/user-attachments/assets/b785b5a6-5721-4b66-ba52-f8e61d0b4901)
-![tagcolormenu](https://github.com/user-attachments/assets/83eb1614-64fc-419b-aac7-42f837424d2a)
-<br>
+
 *Tag-based color coding and customization options*
 
 ### 🔍 Organization & Discovery
