@@ -8,27 +8,44 @@
     "./client": "./src/index.ts"
   },
   "scripts": {
-    "generate": "prisma generate",
-    "db:push": "prisma db push",
+    "generate": "prisma generate --schema=./prisma/schema.prisma",
+    "db:push": "prisma db push --schema=./prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --name",
-    "db:migrate:deploy": "prisma migrate deploy",
-    "db:migrate:reset": "prisma migrate reset",
-    "db:studio": "prisma studio",
+    "db:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "db:migrate:reset": "prisma migrate reset --schema=./prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=./prisma/schema.prisma",
     "build": "tsc",
-    "postinstall": "prisma generate"
+    "type-check": "tsc --noEmit",
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "prisma",
+    "database",
+    "orm",
+    "typescript",
+    "snippets"
+  ],
+  "author": "samwasted",
   "license": "ISC",
   "description": "Shared database package with Prisma ORM for snippets application",
   "dependencies": {
     "@prisma/client": "^6.9.0"
   },
   "devDependencies": {
+    "@types/node": "^22.15.3",
     "prisma": "^6.9.0",
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": ">=18.0.0"
-  }
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "src",
+    "prisma",
+    "dist"
+  ]
 }
