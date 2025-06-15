@@ -17,7 +17,7 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Real-time Collaboration**: Live editing with WebSocket connections
 - **Responsive Design**: Complete functionality across desktop and mobile devices
 
-![canvas](https://github.com/user-attachments/assets/1b657c73-d020-4731-bd60-806125b508fc)
+![canvas](https://github.com/user-attachments/assets/1b657c73-d020-4731-bd60-806125b508fc)<br>
 *Interactive canvas with moveable snippet boxes*
 
 ### 🔐 Authentication & Security
@@ -32,7 +32,8 @@ A powerful, collaborative code snippets management platform with real-time colla
 - Collaborative workspaces with granular permissions
 - Space ownership and admin controls
 
-![Space Management](screenshots/space-settings.png)
+![collaborator](https://github.com/user-attachments/assets/31d26611-f76b-4dda-89af-e202d1a05b2a)
+<br>
 *Space settings with collaborator management*
 
 ### 🎨 Customization & UI
@@ -42,7 +43,7 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Smooth Animations**: Framer Motion powered transitions
 - **Vibey UI**: Modern, intuitive design language
 
-![Color Customization](screenshots/color-customization.png)
+![tagcolormenu](https://github.com/user-attachments/assets/83eb1614-64fc-419b-aac7-42f837424d2a)
 *Tag-based color coding and customization options*
 
 ### 🔍 Organization & Discovery
@@ -52,7 +53,7 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Search Functionality**: Find snippets by title quickly
 - **Click Navigation**: Jump to specific snippets instantly
 
-![Sidebar Navigation](screenshots/sidebar-features.png)
+![sidebarnavigation](https://github.com/user-attachments/assets/f3983106-7918-49bb-87ff-6e2de4908f31)
 *Collapsible sidebar with search, tags, and collaborators*
 
 ### 👥 Collaboration Features
@@ -69,15 +70,16 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Visual Data**: Charts and graphs for usage patterns
 - **Performance Metrics**: Understand your snippet usage
 
-![Analytics Dashboard](screenshots/analytics-dashboard.png)
+<img width="1257" alt="analytics" src="https://github.com/user-attachments/assets/c5b1df25-dbd2-41d0-a9f2-2c8b83f6c87b" />
+<br>
 *Analytics section with visual data representation*
 
 ### 📱 Mobile Experience
 - **Fully Responsive**: Complete feature parity on mobile
 - **Touch Optimized**: Mobile-specific drag controls
 - **Adaptive UI**: Interface adjusts seamlessly to screen sizes
-
-![Mobile Interface](screenshots/mobile-interface.png)
+<img width="293" alt="space_canvas_mobile" src="https://github.com/user-attachments/assets/1573fe47-59b9-4b47-bcd8-9ea81e77d80d" />
+<br>
 *Mobile-responsive design with touch controls*
 
 ## 🛠️ Tech Stack
