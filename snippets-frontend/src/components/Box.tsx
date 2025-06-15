@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -38,14 +38,6 @@ const Box: React.FC<BoxProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Handle title click to open edit modal
-  const handleTitleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    console.log('Title clicked:', box.title); // Debug log
-    onStartEditing(box);
-  }, [box, onStartEditing]);
-
   // dnd-kit draggable hook with proper coordinate handling
   const {
     attributes,
@@ -75,7 +67,7 @@ const Box: React.FC<BoxProps> = ({
     transformOrigin: 'center center',
     willChange: isDragging || isHovered ? 'transform' : 'auto',
     zIndex: isDragging ? 1000 : isHovered ? 10 : 1,
-    touchAction: 'manipulation' // Allow touch manipulation
+    touchAction: 'none'
   };
 
   // Code file detection
@@ -172,6 +164,13 @@ const Box: React.FC<BoxProps> = ({
     }
   };
 
+  // Handle title click for editing
+  const handleTitleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onStartEditing(box);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -185,9 +184,6 @@ const Box: React.FC<BoxProps> = ({
       
       style={style}
       
-      // Remove listeners from main div - they interfere with title clicks
-      {...attributes}
-      
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       
@@ -197,76 +193,71 @@ const Box: React.FC<BoxProps> = ({
       onDrop={handleDrop}
     >
       <div className="p-3 flex-1 flex flex-col relative">
-        {/* Clickable Title - NO drag listeners here */}
+        {/* Title - clickable for editing */}
         <div 
-          onClick={handleTitleClick}
-          className={`font-semibold text-center mb-2 truncate transition-all duration-300 cursor-pointer hover:scale-105 hover:underline ${
-            isDarkMode ? 'text-white hover:text-blue-200' : 'text-white hover:text-blue-100'
+          className={`font-semibold text-center mb-2 truncate transition-all duration-300 cursor-pointer hover:underline ${
+            isDarkMode ? 'text-white' : 'text-white'
           } ${
             isHovered ? 'text-shadow-lg scale-105' : ''
           }`}
-          title="Click to edit this box"
+          onClick={handleTitleClick}
+          title="Click to edit"
         >
           {box.title}
         </div>
-
-        {/* Drag Handle - separate from title */}
+        
+        {/* Lower area - draggable */}
         <div 
+          className="flex-1 flex flex-col cursor-move"
           {...listeners}
-          className="absolute top-1 right-1 w-6 h-6 cursor-move opacity-50 hover:opacity-100 transition-opacity duration-200 flex items-center justify-center"
-          title="Drag to move"
+          {...attributes}
         >
-          <div className="w-3 h-3 bg-white/60 rounded-sm flex flex-col justify-center items-center">
-            <div className="w-1 h-1 bg-white rounded-full mb-px"></div>
-            <div className="w-1 h-1 bg-white rounded-full"></div>
-          </div>
+          {box.description && (
+            <div className={`text-xs flex-1 overflow-hidden transition-all duration-300 ${
+              isDarkMode ? 'text-white/90' : 'text-white/90'
+            } ${
+              isHovered ? 'text-white scale-105' : ''
+            }`}>
+              <div className="line-clamp-3">{box.description}</div>
+            </div>
+          )}
+          
+          {/* Tags section */}
+          {box.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {box.tags.slice(0, 3).map(tag => (
+                <span
+                  key={tag}
+                  onContextMenu={(e) => onTagRightClick(e, tag)}
+                  className={`inline-block text-white text-xs px-1.5 py-0.5 rounded cursor-context-menu truncate max-w-16 transition-all duration-200 hover:scale-110 ${
+                    isDarkMode 
+                      ? 'bg-white/20 hover:bg-white/30' 
+                      : 'bg-white/20 hover:bg-white/30'
+                  } ${
+                    isHovered ? 'bg-white/30 scale-105' : ''
+                  }`}
+                  title={tag}
+                >
+                  {tag}
+                </span>
+              ))}
+              {box.tags.length > 3 && (
+                <span 
+                  className={`inline-block text-white text-xs px-1.5 py-0.5 rounded transition-all duration-200 ${
+                    isDarkMode 
+                      ? 'bg-white/20' 
+                      : 'bg-white/20'
+                  } ${
+                    isHovered ? 'bg-white/30 scale-105' : ''
+                  }`}
+                  title={`Additional tags: ${box.tags.slice(3).join(', ')}`}
+                >
+                  +{box.tags.length - 3}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        
-        {box.description && (
-          <div className={`text-xs flex-1 overflow-hidden transition-all duration-300 ${
-            isDarkMode ? 'text-white/90' : 'text-white/90'
-          } ${
-            isHovered ? 'text-white scale-105' : ''
-          }`}>
-            <div className="line-clamp-3">{box.description}</div>
-          </div>
-        )}
-        
-        {/* Tags section */}
-        {box.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {box.tags.slice(0, 3).map(tag => (
-              <span
-                key={tag}
-                onContextMenu={(e) => onTagRightClick(e, tag)}
-                className={`inline-block text-white text-xs px-1.5 py-0.5 rounded cursor-context-menu truncate max-w-16 transition-all duration-200 hover:scale-110 ${
-                  isDarkMode 
-                    ? 'bg-white/20 hover:bg-white/30' 
-                    : 'bg-white/20 hover:bg-white/30'
-                } ${
-                  isHovered ? 'bg-white/30 scale-105' : ''
-                }`}
-                title={tag}
-              >
-                {tag}
-              </span>
-            ))}
-            {box.tags.length > 3 && (
-              <span 
-                className={`inline-block text-white text-xs px-1.5 py-0.5 rounded transition-all duration-200 ${
-                  isDarkMode 
-                    ? 'bg-white/20' 
-                    : 'bg-white/20'
-                } ${
-                  isHovered ? 'bg-white/30 scale-105' : ''
-                }`}
-                title={`Additional tags: ${box.tags.slice(3).join(', ')}`}
-              >
-                +{box.tags.length - 3}
-              </span>
-            )}
-          </div>
-        )}
 
         {/* Drop zone overlay */}
         {isDragOver && (
@@ -285,7 +276,7 @@ const Box: React.FC<BoxProps> = ({
           </div>
         )}
 
-        {/* Drag indicator - enhanced during actual drag */}
+        {/* Drag indicator -during actual drag */}
         {isDragging && (
           <div className="absolute -top-2 -left-2 w-3 h-3 bg-white rounded-full shadow-lg animate-pulse ring-2 ring-blue-400" />
         )}
