@@ -1319,8 +1319,8 @@ export default function Space() {
                     linear-gradient(${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px),
                     linear-gradient(90deg, ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px)
                   `,
-                  backgroundSize: `${40 * scale}px ${40 * scale}px`,
-                  backgroundPosition: `${(panX)% (40 * scale)}px ${(panY)% (40 * scale)}px`
+                  backgroundSize: `${25 * scale}px ${25 * scale}px`,
+                  backgroundPosition: `${(panX)% (25 * scale)}px ${(panY)% (25 * scale)}px`
                 }}
               />
 
