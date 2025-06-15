@@ -1,6 +1,9 @@
 import React from "react";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from 'react-router-dom';
+import { DndContext, type DragEndEvent, type DragStartEvent, useDndMonitor } from '@dnd-kit/core';
+import { restrictToWindowEdges } from '@dnd-kit/modifiers';
+import { CSS } from '@dnd-kit/utilities';
 import Sidebar from "./Sidebar";
 import Box from "./Box";
 import EditModal from "./EditModal";
@@ -92,6 +95,10 @@ export default function Space() {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // dnd-kit specific state
+  const [activeSnippet, setActiveSnippet] = useState<Snippet | null>(null);
+  const [draggedSnippetId, setDraggedSnippetId] = useState<string | null>(null);
+
   // Edit modal state
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
   const [editText, setEditText] = useState("");
@@ -150,6 +157,34 @@ export default function Space() {
     token: authToken,
     enabled: userLoaded && !!currentUser.id
   });
+
+  // dnd-kit drag handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const snippet = snippets.find(s => s.id === active.id);
+    
+    if (snippet) {
+      setActiveSnippet(snippet);
+      setDraggedSnippetId(active.id as string);
+      setIsSpaceDragDisabled(true); // Disable space dragging during snippet drag
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, delta } = event;
+    
+    if (delta.x !== 0 || delta.y !== 0) {
+      // Apply scale compensation to delta coordinates
+      const scaledDeltaX = delta.x / scale;
+      const scaledDeltaY = delta.y / scale;
+      
+      moveSnippet(active.id as string, scaledDeltaX, scaledDeltaY);
+    }
+    
+    setActiveSnippet(null);
+    setDraggedSnippetId(null);
+    setIsSpaceDragDisabled(false); // Re-enable space dragging
+  };
 
   // Initialize user data
   useEffect(() => {
@@ -251,9 +286,9 @@ export default function Space() {
     return null;
   };
 
-  // Mouse event handlers for canvas panning
+  // Canvas panning logic with dnd-kit awareness
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (isSpaceDragDisabled) return;
+    if (isSpaceDragDisabled || draggedSnippetId) return; // Don't pan during snippet drag
     
     const target = e.target as HTMLElement;
     const isOnCanvas = canvasRef.current?.contains(target) || target === canvasRef.current;
@@ -266,7 +301,7 @@ export default function Space() {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || isSpaceDragDisabled) return;
+    if (!isDragging || isSpaceDragDisabled || draggedSnippetId) return;
 
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
@@ -279,44 +314,9 @@ export default function Space() {
     setIsDragging(false);
   };
 
-  // Handle code updates from drag-and-drop
-  const handleCodeUpdate = async (snippetId: string, code: string, fileName: string) => {
-    try {
-      setSnippets(prev => prev.map(snippet =>
-        snippet.id === snippetId
-          ? {
-            ...snippet,
-            code: code,
-            title: fileName.replace(/\.[^/.]+$/, ""),
-            description: `Loaded from: ${fileName}`
-          }
-          : snippet
-      ));
-
-      const response = await fetch(`/api/spaces/${spaceId}/snippet/${snippetId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code: code,
-          title: fileName.replace(/\.[^/.]+$/, ""),
-          description: `Loaded from: ${fileName}`
-        }),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        console.error('Failed to save code to server');
-      }
-    } catch (error) {
-      console.error('Error updating snippet code:', error);
-    }
-  };
-
-  // Touch event handlers for mobile
+  // Touch handlers with dnd-kit awareness
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (isSpaceDragDisabled) return;
+    if (isSpaceDragDisabled || draggedSnippetId) return;
     
     if (e.touches.length !== 1) return;
 
@@ -343,7 +343,7 @@ export default function Space() {
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || e.touches.length !== 1 || isSpaceDragDisabled) return;
+    if (!isDragging || e.touches.length !== 1 || isSpaceDragDisabled || draggedSnippetId) return;
 
     const touch = e.touches[0];
 
@@ -365,10 +365,10 @@ export default function Space() {
     setIsDragging(false);
   };
 
-  // Global mouse and touch handlers
+  // Global mouse and touch handlers updated for dnd-kit compatibility
   React.useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (!isDragging || isSpaceDragDisabled) return;
+      if (!isDragging || isSpaceDragDisabled || draggedSnippetId) return;
 
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
@@ -382,7 +382,7 @@ export default function Space() {
     };
 
     const handleGlobalTouchMove = (e: TouchEvent) => {
-      if (!isDragging || e.touches.length !== 1 || isSpaceDragDisabled) return;
+      if (!isDragging || e.touches.length !== 1 || isSpaceDragDisabled || draggedSnippetId) return;
 
       if (!containerRef.current) {
         setIsDragging(false);
@@ -422,9 +422,9 @@ export default function Space() {
       document.removeEventListener('touchcancel', handleGlobalTouchEnd);
       window.removeEventListener('orientationchange', handleOrientationChangeDuringTouch);
     };
-  }, [isDragging, dragStart, panStart, panX, panY, isSpaceDragDisabled]);
+  }, [isDragging, dragStart, panStart, panX, panY, isSpaceDragDisabled, draggedSnippetId]);
 
-  // Move snippet position
+  // Updated moveSnippet function for dnd-kit integration
   const moveSnippet = async (id: string, deltaX: number, deltaY: number) => {
     const snippet = snippets.find(s => s.id === id);
     if (!snippet) return;
@@ -462,6 +462,41 @@ export default function Space() {
       } else {
         fetchSpaceData();
       }
+    }
+  };
+
+  // Handle code updates from drag-and-drop
+  const handleCodeUpdate = async (snippetId: string, code: string, language: string, fileName: string) => {
+    try {
+      setSnippets(prev => prev.map(snippet =>
+        snippet.id === snippetId
+          ? {
+            ...snippet,
+            code: code,
+            title: fileName.replace(/\.[^/.]+$/, ""),
+            description: `Loaded from: ${fileName}`
+          }
+          : snippet
+      ));
+
+      const response = await fetch(`/api/spaces/${spaceId}/snippet/${snippetId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: code,
+          title: fileName.replace(/\.[^/.]+$/, ""),
+          description: `Loaded from: ${fileName}`
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save code to server');
+      }
+    } catch (error) {
+      console.error('Error updating snippet code:', error);
     }
   };
 
@@ -1028,14 +1063,12 @@ export default function Space() {
     });
   };
 
-  // Permission and connection status helpers
-  console.log(userPermissions)
   const canEdit = userRole === 'OWNER' || 
-  userRole === 'EDITOR' || 
-  userRole === 'ADMIN' ||
-  userPermissions?.allowed ||
-  userPermissions?.isOwner ||
-  spaceData?.ownerId === currentUser.id;
+    userRole === 'EDITOR' || 
+    userRole === 'ADMIN' ||
+    userPermissions?.allowed ||
+    userPermissions?.isOwner ||
+    spaceData?.ownerId === currentUser.id;
 
   const connectionStatus = (() => {
     if (isJoined) return { status: 'Connected & Joined', color: isDarkMode ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800' };
@@ -1063,266 +1096,298 @@ export default function Space() {
   });
 
   return (
-    <div className={`h-screen transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'
-      }`} key={refreshKey}>
-      {/* Main Content */}
-      <div className="flex flex-col h-full">
-        {/* Header with Back Button and Controls */}
-        <div className={`border-b p-3 sm:p-4 transition-colors duration-300 ${isDarkMode
-            ? 'bg-gray-800 border-gray-700'
-            : 'bg-white border-gray-200'
-          }`}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Back Button */}
-              <button
-                onClick={() => navigate('/dashboard')}
-                className={`p-2 rounded-md transition-colors duration-300 ${isDarkMode
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                  }`}
-                title="Back to dashboard"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-
-              <h1 className={`text-lg font-semibold truncate transition-colors duration-300 hidden sm:block ${isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                {spaceData?.name || 'Code Space'}
-              </h1>
-              {isLoading && (
-                <span className={`text-sm transition-colors duration-300 hidden ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                  }`}>
-                  Loading...
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-              {/* Dark Mode Toggle */}
-              <button
-                onClick={toggleDarkMode}
-                className={`p-2 rounded-md transition-colors duration-300 ${isDarkMode
-                    ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {isDarkMode ? (
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                  </svg>
-                )}
-              </button>
-
-              {/* Zoom Controls */}
-              <div className={`flex items-center gap-1 rounded-md p-1 transition-colors duration-300 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
-                }`}>
+    <div className={`h-screen transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`} key={refreshKey}>
+      <DndContext
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        modifiers={[restrictToWindowEdges]}
+      >
+        {/* Main Content */}
+        <div className="flex flex-col h-full">
+          {/* Header with Back Button and Controls */}
+          <div className={`border-b p-3 sm:p-4 transition-colors duration-300 ${isDarkMode
+              ? 'bg-gray-800 border-gray-700'
+              : 'bg-white border-gray-200'
+            }`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {/* Back Button */}
                 <button
-                  onClick={() => zoom(-0.2)}
-                  className={`p-1 rounded transition-colors duration-300 ${isDarkMode
-                      ? 'text-gray-300 hover:text-white hover:bg-gray-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                  onClick={() => navigate('/dashboard')}
+                  className={`p-2 rounded-md transition-colors duration-300 ${isDarkMode
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
                     }`}
-                  title="Zoom out"
+                  title="Back to dashboard"
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
                 </button>
-                <span className={`px-2 text-xs sm:text-sm min-w-[2.5rem] sm:min-w-[3rem] text-center transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                  {Math.round(scale * 100)}%
-                </span>
-                <button
-                  onClick={() => zoom(0.2)}
-                  className={`p-1 rounded transition-colors duration-300 ${isDarkMode
-                      ? 'text-gray-300 hover:text-white hover:bg-gray-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
-                    }`}
-                  title="Zoom in"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                </button>
-              </div>
 
-              {/* Space Drag Toggle */}
-              <button
-                onClick={() => setIsSpaceDragDisabled(!isSpaceDragDisabled)}
-                className={`p-2 rounded-md transition-colors duration-300 ${
-                  isSpaceDragDisabled
-                    ? isDarkMode
-                      ? 'bg-red-600 text-white hover:bg-red-700'
-                      : 'bg-red-500 text-white hover:bg-red-600'
-                    : isDarkMode
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                }`}
-                title={isSpaceDragDisabled ? 'Enable space dragging' : 'Disable space dragging'}
-              >
-                {isSpaceDragDisabled ? (
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                ) : (
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                  </svg>
+                <h1 className={`text-lg font-semibold truncate transition-colors duration-300 hidden sm:block ${isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                  {spaceData?.name || 'Code Space'}
+                </h1>
+                {isLoading && (
+                  <span className={`text-sm transition-colors duration-300 hidden ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                    Loading...
+                  </span>
                 )}
-              </button>
-
-              {/* WebSocket Status */}
-              <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${connectionStatus.color}`}>
-                <span className="hidden sm:inline">WS: </span>
-                {connectionStatus.status}
               </div>
 
-              {/* User Role */}
-              {userPermissions && (
-                <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${isDarkMode ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'
-                  }`}>
-                  {userRole || "VIEWER"}
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <button
-                onClick={addSnippet}
-                className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
-                  }`}
-                disabled={!canEdit}
-              >
-                <span className="hidden sm:inline">Add Snippet</span>
-                <span className="sm:hidden">Add</span>
-              </button>
-
-              <button
-                onClick={fetchSpaceData}
-                className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 ${isDarkMode
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                  }`}
-              >
-                <span className="hidden sm:inline">Refresh</span>
-                <span className="sm:hidden">↻</span>
-              </button>
-
-              {/* Sidebar Toggle */}
-              <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className={`p-2 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105 ${isDarkMode
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                  }`}
-                title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-              >
-                <svg
-                  className="h-5 w-5 transition-transform duration-300 ease-in-out"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  style={{
-                    transform: isSidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)'
-                  }}
+              <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                {/* Dark Mode Toggle */}
+                <button
+                  onClick={toggleDarkMode}
+                  className={`p-2 rounded-md transition-colors duration-300 ${isDarkMode
+                      ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={isSidebarOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
-                    className="transition-all duration-300 ease-in-out"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
+                  {isDarkMode ? (
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                    </svg>
+                  )}
+                </button>
 
-        {/* Canvas with Infinite Grid */}
-        <div
-          ref={containerRef}
-          className={`flex-1 overflow-hidden relative transition-colors duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
-            }`}
-          onWheel={handleWheel}
-        >
-          <motion.div
-            ref={canvasRef}
-            className={`absolute inset-0 ${
-              isSpaceDragDisabled 
-                ? 'cursor-default' 
-                : 'cursor-grab active:cursor-grabbing'
-            }`}
-            style={{
-              transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
-              transformOrigin: '0 0',
-              touchAction: 'none'
-            }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            {/* Grid Background */}
-            <div
-              className="absolute inset-0 opacity-20"
-              style={{
-                backgroundImage: `
-                  linear-gradient(${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px),
-                  linear-gradient(90deg, ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px)
-                `,
-                backgroundSize: `${20 * scale}px ${20 * scale}px`,
-                backgroundPosition: `${panX % (20 * scale)}px ${panY % (20 * scale)}px`
-              }}
-            />
-
-            {/* Render Snippets */}
-            {filteredSnippets.map(snippet => (
-              <Box
-                key={snippet.id}
-                box={snippet}
-                scale={scale}
-                onUpdatePosition={moveSnippet}
-                onStartEditing={() => startEditing(snippet)}
-                onTagRightClick={handleTagRightClick}
-                onCodeUpdate={handleCodeUpdate}
-                isDarkMode={isDarkMode}
-              />
-            ))}
-
-            {/* Empty State */}
-            {filteredSnippets.length === 0 && (
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                <div className={`mb-4 text-lg transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                {/* Zoom Controls */}
+                <div className={`flex items-center gap-1 rounded-md p-1 transition-colors duration-300 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
                   }`}>
-                  No snippets found
+                  <button
+                    onClick={() => zoom(-0.2)}
+                    className={`p-1 rounded transition-colors duration-300 ${isDarkMode
+                        ? 'text-gray-300 hover:text-white hover:bg-gray-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                      }`}
+                    title="Zoom out"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                    </svg>
+                  </button>
+                  <span className={`px-2 text-xs sm:text-sm min-w-[2.5rem] sm:min-w-[3rem] text-center transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                    }`}>
+                    {Math.round(scale * 100)}%
+                  </span>
+                  <button
+                    onClick={() => zoom(0.2)}
+                    className={`p-1 rounded transition-colors duration-300 ${isDarkMode
+                        ? 'text-gray-300 hover:text-white hover:bg-gray-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                      }`}
+                    title="Zoom in"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </button>
                 </div>
+
+                {/* Space Drag Toggle */}
+                <button
+                  onClick={() => setIsSpaceDragDisabled(!isSpaceDragDisabled)}
+                  className={`p-2 rounded-md transition-colors duration-300 ${
+                    isSpaceDragDisabled
+                      ? isDarkMode
+                        ? 'bg-red-600 text-white hover:bg-red-700'
+                        : 'bg-red-500 text-white hover:bg-red-600'
+                      : isDarkMode
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                  }`}
+                  title={isSpaceDragDisabled ? 'Enable space dragging' : 'Disable space dragging'}
+                >
+                  {isSpaceDragDisabled ? (
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* WebSocket Status */}
+                <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${connectionStatus.color}`}>
+                  <span className="hidden sm:inline">WS: </span>
+                  {connectionStatus.status}
+                </div>
+
+                {/* User Role */}
+                {userPermissions && (
+                  <div className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm transition-colors duration-300 hidden sm:block ${isDarkMode ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'
+                    }`}>
+                    {userRole || "VIEWER"}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
                 <button
                   onClick={addSnippet}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
+                  className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
                       ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
                       : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
                     }`}
-                  disabled={!userPermissions?.allowed}
+                  disabled={!canEdit}
                 >
-                  Create Your First Snippet
+                  <span className="hidden sm:inline">Add Snippet</span>
+                  <span className="sm:hidden">+</span>
+                </button>
+
+                <button
+                  onClick={fetchSpaceData}
+                  className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 ${isDarkMode
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                >
+                  <span className="hidden sm:inline">Refresh</span>
+                  <span className="sm:hidden">↻</span>
+                </button>
+
+                {/* Sidebar Toggle */}
+                <button
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className={`p-2 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105 ${isDarkMode
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                    }`}
+                  title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+                >
+                  <svg
+                    className="h-5 w-5 transition-transform duration-300 ease-in-out"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    style={{
+                      transform: isSidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d={isSidebarOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
+                      className="transition-all duration-300 ease-in-out"
+                    />
+                  </svg>
                 </button>
               </div>
-            )}
-          </motion.div>
+            </div>
+          </div>
+
+          {/* Canvas with Infinite Grid */}
+          <div
+            ref={containerRef}
+            className={`flex-1 overflow-hidden relative transition-colors duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
+              }`}
+            onWheel={handleWheel}
+          >
+            <motion.div
+              ref={canvasRef}
+              className={`absolute inset-0 ${
+                isSpaceDragDisabled || draggedSnippetId
+                  ? 'cursor-default' 
+                  : 'cursor-grab active:cursor-grabbing'
+              }`}
+              style={{
+                transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
+                transformOrigin: '0 0',
+                touchAction: 'none'
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {/* Grid Background */}
+              <div
+                className="absolute h-5000 w-5000 -inset-2500 opacity-20" //now the grids are fixed
+                style={{
+                  backgroundImage: `
+                    linear-gradient(${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px),
+                    linear-gradient(90deg, ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px)
+                  `,
+                  backgroundSize: `${40 * scale}px ${40 * scale}px`,
+                  backgroundPosition: `${(panX)% (40 * scale)}px ${(panY)% (40 * scale)}px`
+                }}
+              />
+
+              {/* Render Snippets with dnd-kit */}
+              {filteredSnippets.map(snippet => (
+                <Box
+                  key={snippet.id}
+                  box={snippet}
+                  scale={scale}
+                  onStartEditing={() => startEditing(snippet)}
+                  onTagRightClick={handleTagRightClick}
+                  onCodeUpdate={handleCodeUpdate}
+                  isDarkMode={isDarkMode}
+                />
+              ))}
+
+              {/* Empty State */}
+              {filteredSnippets.length === 0 && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                  <div className={`mb-4 text-lg transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                    No snippets found
+                  </div>
+                  <button
+                    onClick={addSnippet}
+                    className={`px-6 py-3 rounded-lg font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
+                        : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
+                      }`}
+                    disabled={!userPermissions?.allowed}
+                  >
+                    Create Snippet
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
         </div>
-      </div>
+
+        {/* Drag Overlay for better visual feedback */}
+        {activeSnippet && (
+          <div
+            className="fixed pointer-events-none z-50 opacity-80"
+            style={{
+              transform: CSS.Transform.toString({
+                x: 0,
+                y: 0,
+                scaleX: 1,
+                scaleY: 1
+              })
+            }}
+          >
+            <div className={`w-48 h-40 rounded-lg shadow-2xl ${activeSnippet.color} rotate-3 scale-110`}>
+              <div className="p-3">
+                <div className="font-semibold text-white text-center mb-2 truncate">
+                  {activeSnippet.title}
+                </div>
+                {activeSnippet.description && (
+                  <div className="text-xs text-white/90 line-clamp-3">
+                    {activeSnippet.description}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </DndContext>
 
       {/* Sidebar */}
       {isSidebarOpen && (

@@ -6,7 +6,7 @@ const useDarkMode = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     try {
       const savedMode = localStorage.getItem('isDarkMode');
-      return savedMode ? JSON.parse(savedMode) : false;
+      return savedMode ? JSON.parse(savedMode) : true;
     } catch (error) {
       console.error('Error reading from localStorage:', error);
       return false;

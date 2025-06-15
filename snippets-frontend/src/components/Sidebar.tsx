@@ -489,7 +489,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <motion.div
         variants={sidebarVariants}
         animate={isCollapsed ? "collapsed" : "expanded"}
-        className={`fixed right-4 top-20 bottom-4 rounded-xl shadow-2xl h-[90vh] flex z-50 flex-col border overflow-hidden transition-colors duration-300 ${
+        className={`fixed right-4 top-20 bottom-4 rounded-xl shadow-2xl sm:h-[90vh] h-[80vh] flex z-50 flex-col border overflow-hidden transition-colors duration-300 ${
           isDarkMode
             ? 'bg-gray-800 border-gray-700'
             : 'bg-white border-gray-100'
@@ -930,7 +930,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       onWheel={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className={`font-semibold text-sm transition-colors duration-300 ${
+                        <h4 className={`font-semibold text-sm hidden sm:block transition-colors duration-300 ${
                           isDarkMode ? 'text-gray-200' : 'text-gray-700'
                         }`}>
                           Filter tags
@@ -1009,7 +1009,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className={`text-xs mt-4 p-3 rounded-lg border transition-colors duration-300 ${
+                        className={`text-xs mt-4 p-3 hidden sm:block rounded-lg border transition-colors duration-300 ${
                           isDarkMode
                             ? 'bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-gray-600 text-gray-300'
                             : 'bg-gradient-to-r from-blue-50 to-purple-50 border-gray-100 text-gray-500'

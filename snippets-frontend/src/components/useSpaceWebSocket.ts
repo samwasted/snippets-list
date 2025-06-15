@@ -145,12 +145,12 @@ export const useSpaceWebSocket = (options: UseSpaceWebSocketOptions = {}): UseSp
         
         console.log('Processing WebSocket message:', enhancedMessage);
         
-        // FIXED: Explicitly log userId for debugging
-        console.log('Message from current user:', 
-            enhancedMessage.userId === userId, 
-            enhancedMessage.userId, 
-            userId
-        );
+        // Explicitly log userId for debugging
+        // console.log('Message from current user:', 
+        //     enhancedMessage.userId === userId, 
+        //     enhancedMessage.userId, 
+        //     userId
+        // );
         
         setLastMessage(enhancedMessage);
         
@@ -220,7 +220,7 @@ export const useSpaceWebSocket = (options: UseSpaceWebSocketOptions = {}): UseSp
         }
         
         let canPerform = userRole === 'OWNER' || userRole === 'EDITOR' || userRole === 'ADMIN';
-        console.log("current users role is "+currentUser?.role)
+        // console.log("current users role is "+currentUser?.role)
         if(currentUser?.role.toLocaleLowerCase("admin")){
             canPerform = true;
         }
