@@ -273,7 +273,7 @@ export type Box = {
   label: string;
   description: string;
   tags: string[];
-  files?: File[];
+  files?: string[];
   totalViews: number;
   createdAt: string;
   updatedAt: string;

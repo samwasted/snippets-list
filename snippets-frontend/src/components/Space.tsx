@@ -23,16 +23,19 @@ interface Snippet {
   ownerId: string;
   createdAt: Date;
   updatedAt: Date;
-  files?: File[];
+  files?: string[];
 }
 
 interface Space {
   id: string;
   name: string;
+  totalViews: number;
   order: string[];
   isPublic: boolean;
   ownerId: string;
   snippets?: Snippet[];
+  createdAt: Date; 
+  updatedAt: Date; 
 }
 
 // API utilities
@@ -473,7 +476,7 @@ export default function Space() {
 
     switch (lastMessage.type) {
       case 'snippet-moved':
-        const moveId = lastMessage.payload.snippetId || lastMessage.payload.id;
+        const moveId = lastMessage.payload.id;
         if (!moveId) return;
 
         setSnippets(prev => prev.map(snippet => {
@@ -490,7 +493,7 @@ export default function Space() {
         break;
 
       case 'snippet-created':
-        const snippetId = lastMessage.payload.snippetId || lastMessage.payload.id;
+        const snippetId = lastMessage.payload.snippetId;
         if (!snippetId) return;
 
         setSnippets(prev => {
@@ -512,7 +515,7 @@ export default function Space() {
               x: Math.round(lastMessage.payload.x ?? 100),
               y: Math.round(lastMessage.payload.y ?? 100),
               spaceId: lastMessage.payload.spaceId || spaceId,
-              ownerId: lastMessage.payload.ownerId || lastMessage.payload.createdBy || lastMessage.userId || currentUser?.id || '',
+              ownerId: lastMessage.payload.ownerId || lastMessage.userId || currentUser?.id || '',
               createdAt: new Date(lastMessage.payload.createdAt || Date.now()),
               updatedAt: new Date(lastMessage.payload.updatedAt || Date.now())
             };
