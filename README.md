@@ -44,6 +44,7 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Vibey UI**: Modern, intuitive design language
 
 ![tagcolormenu](https://github.com/user-attachments/assets/83eb1614-64fc-419b-aac7-42f837424d2a)
+<br>
 *Tag-based color coding and customization options*
 
 ### 🔍 Organization & Discovery
@@ -54,6 +55,7 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Click Navigation**: Jump to specific snippets instantly
 
 ![sidebarnavigation](https://github.com/user-attachments/assets/f3983106-7918-49bb-87ff-6e2de4908f31)
+<br>
 *Collapsible sidebar with search, tags, and collaborators*
 
 ### 👥 Collaboration Features
@@ -61,8 +63,8 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Collaborator Management**: Add/remove team members with specific roles
 - **WebSocket Status**: Live connection monitoring
 - **Mobile Block Dragging**: Special mobile-optimized controls
-
-![Real-time Collaboration](screenshots/realtime-collaboration.gif)
+![livecollaboration](https://github.com/user-attachments/assets/deb39d33-6997-4198-a773-ad4f50ad0bde)
+<br>
 *Live collaboration in action*
 
 ### 📊 Analytics & Insights
