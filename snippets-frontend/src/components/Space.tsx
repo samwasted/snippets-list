@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from 'react-router-dom';
 import { DndContext, type DragEndEvent, type DragStartEvent, useDndMonitor } from '@dnd-kit/core';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
-import { CSS } from '@dnd-kit/utilities';
 import Sidebar from "./Sidebar";
 import Box from "./Box";
 import EditModal from "./EditModal";

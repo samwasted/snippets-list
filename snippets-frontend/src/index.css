@@ -107,36 +107,3 @@ button:focus-visible {
   /* outline: 1px solid red !important; */
   /* background: rgba(255, 0, 0, 0.1) !important; */
 }
-.box-component {
-  /* Base transition applied to all states */
-  transition: transform 200ms cubic-bezier(0.25, 1, 0.5, 1), 
-              box-shadow 200ms ease-out;
-  
-  /* Ensure hardware acceleration */
-  backface-visibility: hidden;
-  perspective: 1000px;
-}
-
-.box-component:hover {
-  /* Only specify end states, not transitions */
-  transform: scale(1.05) rotate(-1deg);
-}
-
-.box-component[data-dragging="true"] {
-  /* Disable transitions during drag for smoothness */
-  transition: none;
-  transform: scale(1.0) rotate(3deg);
-}
-
-/* Optimize for smooth animations */
-.box-component * {
-  will-change: auto;
-}
-
-.box-component:hover *,
-.box-component[data-dragging="true"] * {
-  will-change: transform;
-}
-*{
-  touch-action: manipulation;
-}

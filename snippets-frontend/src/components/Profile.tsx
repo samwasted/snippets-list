@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { apiRequest } from './api'; // Adjust path as needed
+import { apiRequest } from './api'; 
 
 // TypeScript interfaces
 interface User {
