@@ -1141,7 +1141,7 @@ export default function Space() {
                 {/* Dark Mode Toggle */}
                 <button
                   onClick={toggleDarkMode}
-                  className={`p-2 rounded-md transition-colors duration-300 ${isDarkMode
+                  className={`p-2 rounded-md cursor-pointer transition-colors duration-300 ${isDarkMode
                       ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
@@ -1163,7 +1163,7 @@ export default function Space() {
                   }`}>
                   <button
                     onClick={() => zoom(-0.2)}
-                    className={`p-1 rounded transition-colors duration-300 ${isDarkMode
+                    className={`p-1 rounded cursor-pointer transition-colors duration-300 ${isDarkMode
                         ? 'text-gray-300 hover:text-white hover:bg-gray-600'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                       }`}
@@ -1179,7 +1179,7 @@ export default function Space() {
                   </span>
                   <button
                     onClick={() => zoom(0.2)}
-                    className={`p-1 rounded transition-colors duration-300 ${isDarkMode
+                    className={`p-1 rounded cursor-pointer transition-colors duration-300 ${isDarkMode
                         ? 'text-gray-300 hover:text-white hover:bg-gray-600'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                       }`}
@@ -1194,7 +1194,7 @@ export default function Space() {
                 {/* Space Drag Toggle */}
                 <button
                   onClick={() => setIsSpaceDragDisabled(!isSpaceDragDisabled)}
-                  className={`p-2 rounded-md transition-colors duration-300 ${
+                  className={`p-2 rounded-md cursor-pointer transition-colors duration-300 ${
                     isSpaceDragDisabled
                       ? isDarkMode
                         ? 'bg-red-600 text-white hover:bg-red-700'
@@ -1233,7 +1233,7 @@ export default function Space() {
                 {/* Action Buttons */}
                 <button
                   onClick={addSnippet}
-                  className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
+                  className={`px-3 sm:px-4 cursor-pointer py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 disabled:opacity-50 ${isDarkMode
                       ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700'
                       : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
                     }`}
@@ -1245,7 +1245,7 @@ export default function Space() {
 
                 <button
                   onClick={fetchSpaceData}
-                  className={`px-3 sm:px-4 py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 ${isDarkMode
+                  className={`px-3 sm:px-4 cursor-pointer py-2 rounded text-sm sm:text-base font-medium transition-colors duration-300 ${isDarkMode
                       ? 'bg-green-600 text-white hover:bg-green-700'
                       : 'bg-green-600 text-white hover:bg-green-700'
                     }`}
@@ -1257,7 +1257,7 @@ export default function Space() {
                 {/* Sidebar Toggle */}
                 <button
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className={`p-2 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105 ${isDarkMode
+                  className={`p-2 rounded-md transition-all cursor-pointer duration-300 ease-in-out transform hover:scale-105 ${isDarkMode
                       ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
                     }`}

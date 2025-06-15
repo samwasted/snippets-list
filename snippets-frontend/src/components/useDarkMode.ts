@@ -9,7 +9,7 @@ const useDarkMode = () => {
       return savedMode ? JSON.parse(savedMode) : true;
     } catch (error) {
       console.error('Error reading from localStorage:', error);
-      return false;
+      return true;
     }
   });
 

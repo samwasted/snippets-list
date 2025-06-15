@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   GripVertical,
@@ -15,8 +15,30 @@ import {
   Palette,
   ExternalLink,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import TagColorMenu from "./TagColorMenu";
 
+// Interfaces remain the same as your original code
 interface Snippet {
   id: string;
   title: string;
@@ -88,7 +110,7 @@ interface SidebarProps {
 
 const API_BASE_URL = `${import.meta.env.VITE_HTTP_URL}/api/v1`;
 
-// Animation variants for consistent motion design
+// Animation variants
 import { easeInOut } from "framer-motion";
 
 const sidebarVariants = {
@@ -147,52 +169,7 @@ const buttonVariants = {
   }
 };
 
-// Custom hook for touch and hold drag functionality
-const useTouchHoldDrag = (onDragStart: () => void, delay: number = 500) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [isHolding, setIsHolding] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const startPositionRef = useRef<{ x: number; y: number } | null>(null);
-
-  const startHold = useCallback((clientX: number, clientY: number) => {
-    startPositionRef.current = { x: clientX, y: clientY };
-    setIsHolding(true);
-    
-    timeoutRef.current = setTimeout(() => {
-      setIsDragging(true);
-      onDragStart();
-    }, delay);
-  }, [onDragStart, delay]);
-
-  const cancelHold = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    setIsHolding(false);
-    setIsDragging(false);
-    startPositionRef.current = null;
-  }, []);
-
-  const checkMovement = useCallback((clientX: number, clientY: number) => {
-    if (!startPositionRef.current) return false;
-    
-    const deltaX = Math.abs(clientX - startPositionRef.current.x);
-    const deltaY = Math.abs(clientY - startPositionRef.current.y);
-    const threshold = 10; // pixels
-    
-    return deltaX > threshold || deltaY > threshold;
-  }, []);
-
-  return {
-    isDragging,
-    isHolding,
-    startHold,
-    cancelHold,
-    checkMovement
-  };
-};
-
+// Helper functions
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
   return {
@@ -222,6 +199,166 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   return response.json();
 };
 
+// Sortable Item Component
+const SortableSnippetItem: React.FC<{
+  snippet: Snippet;
+  index: number;
+  isDarkMode: boolean;
+  userRole: string;
+  onNavigateToBox: (snippet: Snippet) => void;
+  onDeleteSnippet: (id: string) => void;
+  onTagRightClick: (e: React.MouseEvent, tag: string) => void;
+  formatDate: (date: Date) => string;
+  isDragging?: boolean;
+}> = ({
+  snippet,
+  index,
+  isDarkMode,
+  userRole,
+  onNavigateToBox,
+  onDeleteSnippet,
+  onTagRightClick,
+  formatDate,
+  isDragging = false
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = useSortable({ id: snippet.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isSortableDragging ? 0.5 : 1,
+  };
+
+  const canEdit = userRole !== 'VIEWER';
+
+  return (
+    <motion.div
+      ref={setNodeRef}
+      style={style}
+      variants={listItemVariants}
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
+      whileHover={!isSortableDragging ? "hover" : undefined}
+      custom={index}
+      className="group"
+    >
+      <div
+        onClick={() => !isSortableDragging && onNavigateToBox(snippet)}
+        className={`flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 border shadow-sm hover:shadow-lg ${
+          isSortableDragging 
+            ? 'shadow-2xl scale-105 rotate-2 z-50' 
+            : ''
+        } ${
+          isDarkMode
+            ? 'hover:bg-gradient-to-r hover:from-purple-900/30 hover:to-pink-900/30 border-gray-700 bg-gray-800/50'
+            : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-gray-100 bg-white'
+        }`}
+        style={{ cursor: 'pointer' }}
+      >
+        {/* Drag Handle */}
+        {canEdit && (
+          <div
+            {...attributes}
+            {...listeners}
+            className={`flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity p-2 -m-2 rounded-lg cursor-grab active:cursor-grabbing ${
+              isDarkMode
+                ? 'hover:bg-gradient-to-r hover:from-purple-800/30 hover:to-pink-800/30'
+                : 'hover:bg-gradient-to-r hover:from-purple-100 hover:to-pink-100'
+            }`}
+            style={{ 
+              touchAction: 'none',
+              cursor: isSortableDragging ? 'grabbing' : 'grab'
+            }}
+          >
+            <GripVertical className={`w-4 h-4 transition-colors duration-300 ${
+              isDarkMode ? 'text-gray-500' : 'text-gray-400'
+            }`} />
+          </div>
+        )}
+        
+        {/* Snippet Content */}
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
+          <div className="flex items-center gap-3">
+            <div className={`w-6 h-6 rounded-lg ${snippet.color} shadow-lg flex-shrink-0`} />
+            <div className="flex-1 min-w-0">
+              <div className={`font-semibold truncate text-sm transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-100' : 'text-gray-800'
+              }`}>
+                {snippet.title}
+              </div>
+              <div className={`text-xs mt-0.5 flex items-center gap-2 transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <span>x: {Math.round(snippet.x)}, y: {Math.round(snippet.y)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className={`text-xs pl-9 transition-colors duration-300 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Last edited: {formatDate(snippet.updatedAt)}
+          </div>
+
+          {/* Tags */}
+          {(snippet.tags?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1 pl-9">
+              {snippet.tags.map((tag) => (
+                <span
+                  key={tag}
+                  onContextMenu={(e) => onTagRightClick(e, tag)}
+                  className={`inline-block text-xs px-2 py-1 rounded-full cursor-context-menu transition-all duration-200 shadow-sm hover:scale-105 ${
+                    isDarkMode
+                      ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-200 hover:from-gray-600 hover:to-gray-500'
+                      : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 hover:from-gray-200 hover:to-gray-300'
+                  }`}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pl-9 pt-2">
+            <div className="flex gap-2">
+              {(userRole === "ADMIN" || userRole === "EDITOR" || userRole === "OWNER") && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteSnippet(snippet.id);
+                  }}
+                  className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
+                  style={{ cursor: 'pointer' }}
+                >
+                  Delete
+                </motion.button>
+              )}
+            </div>
+            <div className={`text-xs transition-colors duration-300 ${
+              isDarkMode ? 'text-gray-500' : 'text-gray-400'
+            }`}>
+              {snippet.createdAt ? new Date(snippet.createdAt).toLocaleDateString() : "Unknown date"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Main Sidebar Component
 const Sidebar: React.FC<SidebarProps> = ({
   snippets,
   filteredSnippets,
@@ -244,9 +381,21 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClose,
 }) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'snippets' | 'collaborators'>('snippets');
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // TagColorMenu state management
   const [tagColorMenu, setTagColorMenu] = useState<{
@@ -261,6 +410,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     y: 0
   });
 
+  // Collaborator states
   const [collaborators, setCollaborators] = useState<CollaboratorMetadata[]>([]);
   const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null);
   const [collaboratorSummary, setCollaboratorSummary] = useState<CollaboratorSummary | null>(null);
@@ -273,7 +423,46 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isTogglingVisibility, setIsTogglingVisibility] = useState(false);
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
 
-  // Enhanced navigation functions using React Router
+  // Get ordered snippets for consistent rendering
+  const getOrderedSnippets = () => {
+    return filteredSnippets.sort((a, b) => {
+      const aIndex = snippetOrder.indexOf(a.id);
+      const bIndex = snippetOrder.indexOf(b.id);
+      if (aIndex === -1 && bIndex === -1) return 0;
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const orderedSnippets = getOrderedSnippets();
+      const oldIndex = orderedSnippets.findIndex(snippet => snippet.id === active.id);
+      const newIndex = orderedSnippets.findIndex(snippet => snippet.id === over?.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        // Convert to snippet order indices
+        const oldSnippetOrderIndex = snippetOrder.indexOf(active.id as string);
+        const newSnippetOrderIndex = snippetOrder.indexOf(over?.id as string);
+        
+        if (oldSnippetOrderIndex !== -1 && newSnippetOrderIndex !== -1) {
+          onReorderSnippets(oldSnippetOrderIndex, newSnippetOrderIndex);
+        }
+      }
+    }
+
+    setActiveId(null);
+  };
+
+  // Navigation handlers
   const handleNavigateToProfile = (username: string) => {
     navigate(`/profile/${username}`, {
       state: { 
@@ -292,7 +481,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     });
   };
 
-  // Enhanced tag right-click handler with animations
+  // Tag right-click handler
   const onTagRightClick = (e: React.MouseEvent, tag: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -331,7 +520,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     return () => document.removeEventListener('click', handleClickOutside);
   }, [tagColorMenu.isOpen]);
 
-  // Touch and mouse event handling
+  // Event handlers
   const handleSidebarTouch = (e: React.TouchEvent) => {
     e.stopPropagation();
     if (e.type === 'touchstart' || e.type === 'touchmove') {
@@ -491,7 +680,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const canEdit = true;
+  const canEdit = userRole !== 'VIEWER';
   const canManageCollaborators = userRole === 'OWNER' || userRole === 'ADMIN';
 
   const formatDate = (date: Date) => {
@@ -529,179 +718,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  // Enhanced Drag Item Component with Touch Hold
-  const DragItem: React.FC<{ 
-    snippet: Snippet; 
-    index: number; 
-    onDragReorder: (startIndex: number, endIndex: number) => void 
-  }> = ({ snippet, index, onDragReorder }) => {
-    const {
-      isDragging,
-      isHolding,
-      startHold,
-      cancelHold,
-      checkMovement
-    } = useTouchHoldDrag(() => {
-      // Drag start callback
-    }, 500);
-
-    const handlePointerDown = (e: React.PointerEvent) => {
-      if (!canEdit) return;
-      
-      e.preventDefault();
-      const { clientX, clientY } = e;
-      startHold(clientX, clientY);
-    };
-
-    const handlePointerMove = (e: React.PointerEvent) => {
-      if (isHolding && !isDragging) {
-        const { clientX, clientY } = e;
-        if (checkMovement(clientX, clientY)) {
-          cancelHold();
-        }
-      }
-    };
-
-    const handlePointerUp = () => {
-      cancelHold();
-    };
-
-    return (
-      <motion.div
-        key={snippet.id}
-        layout
-        variants={listItemVariants}
-        initial="hidden"
-        animate="visible"
-        exit="hidden"
-        whileHover="hover"
-        custom={index}
-        className="group"
-      >
-        <div
-          onClick={() => onNavigateToBox(snippet)}
-          className={`flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 border shadow-sm hover:shadow-lg ${
-            isDarkMode
-              ? 'hover:bg-gradient-to-r hover:from-purple-900/30 hover:to-pink-900/30 border-gray-700 bg-gray-800/50'
-              : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-gray-100 bg-white'
-          }`}
-          // Add pointer cursor for clickable elements
-          style={{ cursor: 'pointer' }}
-        >
-          {canEdit && (
-            <motion.div
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              className={`flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity p-2 -m-2 rounded-lg ${
-                isDarkMode
-                  ? 'hover:bg-gradient-to-r hover:from-purple-800/30 hover:to-pink-800/30'
-                  : 'hover:bg-gradient-to-r hover:from-purple-100 hover:to-pink-100'
-              }`}
-              // Enhanced cursor states for drag handle
-              style={{ 
-                cursor: isHolding ? 'grabbing' : 'grab',
-                touchAction: 'none'
-              }}
-              animate={{
-                scale: isHolding ? 1.1 : 1,
-                backgroundColor: isHolding ? 'rgba(147, 197, 253, 0.2)' : 'transparent'
-              }}
-              transition={{ duration: 0.2 }}
-            >
-              <GripVertical className={`w-4 h-4 transition-colors duration-300 ${
-                isDarkMode ? 'text-gray-500' : 'text-gray-400'
-              }`} />
-              {isHolding && (
-                <motion.div
-                  className="absolute inset-0 bg-blue-400/20 rounded-lg"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                />
-              )}
-            </motion.div>
-          )}
-          
-          <div className="flex flex-col gap-2 flex-1 min-w-0">
-            <div className="flex items-center gap-3">
-              <div className={`w-6 h-6 rounded-lg ${snippet.color} shadow-lg flex-shrink-0`} />
-              <div className="flex-1 min-w-0">
-                <div className={`font-semibold truncate text-sm transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-100' : 'text-gray-800'
-                }`}>
-                  {snippet.title}
-                </div>
-                <div className={`text-xs mt-0.5 flex items-center gap-2 transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                }`}>
-                  <span>x: {Math.round(snippet.x)}, y: {Math.round(snippet.y)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={`text-xs pl-9 transition-colors duration-300 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              Last edited: {formatDate(snippet.updatedAt)}
-            </div>
-
-            {(snippet.tags?.length ?? 0) > 0 && (
-              <div className="flex flex-wrap gap-1 pl-9">
-                {snippet.tags.map((tag, tagIndex) => (
-                  <motion.span
-                    key={tag}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: tagIndex * 0.05 }}
-                    onContextMenu={(e) => onTagRightClick(e, tag)}
-                    className={`inline-block text-xs px-2 py-1 rounded-full cursor-context-menu transition-all duration-200 shadow-sm hover:scale-105 ${
-                      isDarkMode
-                        ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-200 hover:from-gray-600 hover:to-gray-500'
-                        : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 hover:from-gray-200 hover:to-gray-300'
-                    }`}
-                    // Add pointer cursor for interactive tags
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {tag}
-                  </motion.span>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pl-9 pt-2">
-              <div className="flex gap-2">
-                {(userRole === "ADMIN" || userRole === "EDITOR" || userRole === "OWNER") && (
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteSnippet(snippet.id);
-                    }}
-                    className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
-                    // Add pointer cursor for delete button
-                    style={{ cursor: 'pointer' }}
-                  >
-                    Delete
-                  </motion.button>
-                )}
-              </div>
-              <div className={`text-xs transition-colors duration-300 ${
-                isDarkMode ? 'text-gray-500' : 'text-gray-400'
-              }`}>
-                {snippet.createdAt ? new Date(snippet.createdAt).toLocaleDateString() : "Unknown date"}
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    );
-  };
-
   return (
     <>
-      {/* Main Sidebar with Enhanced Animations */}
+      {/* Main Sidebar */}
       <motion.div
         variants={sidebarVariants}
         animate={isCollapsed ? "collapsed" : "expanded"}
@@ -726,7 +745,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         onWheel={(e) => e.stopPropagation()}
         onMouseEnter={(e) => e.stopPropagation()}
       >
-        {/* Header Section with Improved Animations */}
+        {/* Header Section */}
         <motion.div
           className={`flex items-center justify-between p-4 border-b rounded-t-xl transition-colors duration-300 ${
             isDarkMode
@@ -758,7 +777,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           </AnimatePresence>
 
           <div className="flex items-center gap-2">
-            {/* Mobile close button with animation */}
             {onClose && (
               <motion.button
                 variants={buttonVariants}
@@ -772,9 +790,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     : 'hover:bg-white/50 text-gray-600 hover:text-gray-800'
                 }`}
                 title="Close Sidebar"
-                onTouchStart={handleSidebarTouch}
-                onMouseDown={handleSidebarMouse}
-                // Add pointer cursor
                 style={{ cursor: 'pointer' }}
               >
                 <X className="w-5 h-5" />
@@ -793,9 +808,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                   : 'hover:bg-white/50 text-gray-600 hover:text-gray-800'
               }`}
               title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-              onTouchStart={handleSidebarTouch}
-              onMouseDown={handleSidebarMouse}
-              // Add pointer cursor
               style={{ cursor: 'pointer' }}
             >
               <motion.div
@@ -808,7 +820,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </motion.div>
 
-        {/* Collapsed State with Enhanced Animations */}
+        {/* Collapsed State */}
         <AnimatePresence>
           {isCollapsed && (
             <motion.div
@@ -817,8 +829,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               animate="visible"
               exit="hidden"
               className="flex-1 flex flex-col items-center justify-center p-3 space-y-6"
-              onTouchStart={handleSidebarTouch}
-              onMouseDown={handleSidebarMouse}
             >
               <motion.div 
                 className="text-center"
@@ -844,7 +854,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                   onClick={handleNavigateToAnalytics}
                   className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-md hover:shadow-lg transition-all duration-200"
                   title="View Analytics"
-                  // Add pointer cursor
                   style={{ cursor: 'pointer' }}
                 >
                   <BarChart className="w-5 h-5" />
@@ -862,7 +871,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md hover:shadow-lg transition-all duration-200"
                 title="View Collaborators"
-                // Add pointer cursor
                 style={{ cursor: 'pointer' }}
               >
                 <Users className="w-5 h-5" />
@@ -907,7 +915,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => onNavigateToBox(snippet)}
                       className={`w-full h-8 rounded-lg cursor-pointer ${snippet.color} opacity-75 hover:opacity-100 transition-all duration-200 shadow-md`}
                       title={snippet.title}
-                      // Add pointer cursor
                       style={{ cursor: 'pointer' }}
                     />
                   ))}
@@ -929,7 +936,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
         </AnimatePresence>
 
-        {/* Expanded Content with Enhanced Animations */}
+        {/* Expanded Content */}
         <AnimatePresence>
           {!isCollapsed && (
             <motion.div
@@ -938,10 +945,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               animate="visible"
               exit="hidden"
               className="flex-1 flex flex-col overflow-hidden"
-              onTouchStart={handleSidebarTouch}
-              onMouseDown={handleSidebarMouse}
             >
-              {/* Tab Navigation with Animation */}
+              {/* Tab Navigation */}
               <div className={`flex border-b transition-colors duration-300 ${
                 isDarkMode ? 'border-gray-700' : 'border-gray-100'
               }`}>
@@ -959,7 +964,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                         ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/10'
                         : 'text-gray-600 hover:text-purple-500 hover:bg-purple-50/50'
                   }`}
-                  // Add pointer cursor
                   style={{ cursor: 'pointer' }}
                 >
                   Snippets
@@ -978,7 +982,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                         ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/10'
                         : 'text-gray-600 hover:text-purple-500 hover:bg-purple-50/50'
                   }`}
-                  // Add pointer cursor
                   style={{ cursor: 'pointer' }}
                 >
                   <Users className="w-4 h-4" />
@@ -986,7 +989,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </motion.button>
               </div>
 
-              {/* Analytics Button with Router Navigation */}
+              {/* Analytics Button */}
               {(userRole === "ADMIN" || userRole === "EDITOR" || userRole === "OWNER") && (
                 <motion.div 
                   initial={{ opacity: 0, y: -10 }}
@@ -1003,7 +1006,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     whileTap="tap"
                     onClick={handleNavigateToAnalytics}
                     className="w-full py-2 px-4 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium"
-                    // Add pointer cursor
                     style={{ cursor: 'pointer' }}
                   >
                     <BarChart className="w-4 h-4" />
@@ -1045,7 +1047,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                           ? 'bg-gradient-to-r from-green-500 to-emerald-500'
                           : isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
                       }`}
-                      // Add pointer cursor
                       style={{ cursor: 'pointer' }}
                     >
                       <motion.span
@@ -1094,7 +1095,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </motion.div>
               )}
 
-              {/* Tab Content with Staggered Animations */}
+              {/* Tab Content */}
               <AnimatePresence mode="wait">
                 {activeTab === 'snippets' && (
                   <motion.div
@@ -1128,7 +1129,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                               ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
                               : 'border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 text-gray-900'
                           }`}
-                          // Add text cursor
                           style={{ cursor: 'text' }}
                         />
                         <AnimatePresence>
@@ -1145,7 +1145,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                   ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-200'
                                   : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
                               }`}
-                              // Add pointer cursor
                               style={{ cursor: 'pointer' }}
                             >
                               <X className="w-4 h-4" />
@@ -1155,7 +1154,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       </div>
                     </motion.div>
 
-                    {/* Filters Section with Enhanced Tag Color Management */}
+                    {/* Filters Section */}
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1179,7 +1178,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                             whileTap={{ scale: 0.95 }}
                             onClick={onClearAllFilters}
                             className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 font-semibold transition-colors px-2 py-1 rounded-full hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                            // Add pointer cursor
                             style={{ cursor: 'pointer' }}
                           >
                             Clear All
@@ -1218,7 +1216,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                       : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
                                 }`}
                                 title={userRole !== 'VIEWER' ? "Right-click to change color" : ""}
-                                // Add pointer cursor
                                 style={{ cursor: 'pointer' }}
                               >
                                 {tag}
@@ -1264,7 +1261,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       </motion.div>
                     </motion.div>
 
-                    {/* Snippet List with Enhanced Drag Items */}
+                    {/* Snippet List with Drag and Drop */}
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -1276,51 +1273,73 @@ const Sidebar: React.FC<SidebarProps> = ({
                       }`}
                       onWheel={(e) => e.stopPropagation()}
                     >
-                      <div className="space-y-3">
-                        <AnimatePresence>
-                          {(filteredSnippets ?? [])
-                            .sort((a, b) => {
-                              const aIndex = snippetOrder.indexOf(a.id);
-                              const bIndex = snippetOrder.indexOf(b.id);
-                              if (aIndex === -1 && bIndex === -1) return 0;
-                              if (aIndex === -1) return 1;
-                              if (bIndex === -1) return -1;
-                              return aIndex - bIndex;
-                            })
-                            .map((snippet, index) => (
-                              <DragItem
-                                key={snippet.id}
-                                snippet={snippet}
-                                index={index}
-                                onDragReorder={onReorderSnippets}
-                              />
-                            ))}
-                        </AnimatePresence>
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <SortableContext
+                          items={getOrderedSnippets().map(snippet => snippet.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="space-y-3">
+                            {getOrderedSnippets().length > 0 ? (
+                              getOrderedSnippets().map((snippet, index) => (
+                                <SortableSnippetItem
+                                  key={snippet.id}
+                                  snippet={snippet}
+                                  index={index}
+                                  isDarkMode={isDarkMode}
+                                  userRole={userRole}
+                                  onNavigateToBox={onNavigateToBox}
+                                  onDeleteSnippet={onDeleteSnippet}
+                                  onTagRightClick={onTagRightClick}
+                                  formatDate={formatDate}
+                                />
+                              ))
+                            ) : (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                                className="text-center py-12"
+                              >
+                                <div className="text-6xl mb-4">📦</div>
+                                <div className={`font-medium mb-2 transition-colors duration-300 ${
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  No snippets found
+                                </div>
+                                <div className={`text-xs transition-colors duration-300 ${
+                                  isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
+                                  {searchQuery || tagFilters.size > 0
+                                    ? "Try adjusting your filters or search terms"
+                                    : "Create your first snippet to get started"
+                                  }
+                                </div>
+                              </motion.div>
+                            )}
+                          </div>
+                        </SortableContext>
 
-                        {(filteredSnippets ?? []).length === 0 && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="text-center py-12"
-                          >
-                            <div className="text-6xl mb-4">📦</div>
-                            <div className={`font-medium mb-2 transition-colors duration-300 ${
-                              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              No snippets found
-                            </div>
-                            <div className={`text-xs transition-colors duration-300 ${
-                              isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                            }`}>
-                              {searchQuery || tagFilters.size > 0
-                                ? "Try adjusting your filters or search terms"
-                                : "Create your first snippet to get started"
-                              }
-                            </div>
-                          </motion.div>
-                        )}
-                      </div>
+                        <DragOverlay>
+                          {activeId ? (
+                            <SortableSnippetItem
+                              snippet={getOrderedSnippets().find(snippet => snippet.id === activeId)!}
+                              index={-1}
+                              isDarkMode={isDarkMode}
+                              userRole={userRole}
+                              onNavigateToBox={() => {}}
+                              onDeleteSnippet={() => {}}
+                              onTagRightClick={() => {}}
+                              formatDate={formatDate}
+                              isDragging={true}
+                            />
+                          ) : null}
+                        </DragOverlay>
+                      </DndContext>
                     </motion.div>
                   </motion.div>
                 )}
@@ -1334,7 +1353,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     transition={{ duration: 0.3 }}
                     className="flex-1 flex flex-col overflow-hidden"
                   >
-                    {/* Enhanced Collaborators Header with Summary */}
+                    {/* Collaborators Header */}
                     <motion.div 
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1432,7 +1451,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                       : 'border-gray-200 bg-white text-gray-900'
                                   }`}
                                   disabled={isAddingCollaborator}
-                                  // Add text cursor
                                   style={{ cursor: 'text' }}
                                 />
                               </div>
@@ -1446,7 +1464,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     : 'border-gray-200 bg-white text-gray-900'
                                 }`}
                                 disabled={isAddingCollaborator}
-                                // Add pointer cursor
                                 style={{ cursor: 'pointer' }}
                               >
                                 <option value="VIEWER">Viewer</option>
@@ -1462,7 +1479,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 whileTap="tap"
                                 className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
                                 disabled={isAddingCollaborator || !newUsername.trim()}
-                                // Add pointer cursor when enabled
                                 style={{ cursor: isAddingCollaborator || !newUsername.trim() ? 'not-allowed' : 'pointer' }}
                               >
                                 {isAddingCollaborator ? (
@@ -1491,7 +1507,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       </motion.div>
                     )}
 
-                    {/* Enhanced Collaborators List */}
+                    {/* Collaborators List */}
                     <motion.div 
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -1542,7 +1558,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                   : 'bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200 hover:border-purple-300'
                               }`}
                               onClick={() => handleNavigateToProfile(spaceInfo.owner.username)}
-                              // Add pointer cursor
                               style={{ cursor: 'pointer' }}
                             >
                               <div className="flex items-center justify-between">
@@ -1570,7 +1585,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             </motion.div>
                           )}
 
-                          {/* Enhanced Collaborators with Profile Navigation */}
+                          {/* Collaborators */}
                           <AnimatePresence>
                             {collaborators.map((collaborator, index) => (
                               <motion.div
@@ -1594,7 +1609,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     onClick={() => handleNavigateToProfile(collaborator.user.username)}
                                     whileHover={{ x: 5 }}
                                     transition={{ duration: 0.2 }}
-                                    // Add pointer cursor
                                     style={{ cursor: 'pointer' }}
                                   >
                                     <div className="w-10 h-10 rounded-full bg-gradient-to-r from-gray-500 to-gray-600 text-white flex items-center justify-center text-lg font-bold shadow-sm">
@@ -1620,7 +1634,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         <motion.div 
                                           whileHover={{ scale: 1.05 }}
                                           className={`px-3 py-1 ${getRoleBadgeStyle(collaborator.spaceRole)} text-xs font-medium rounded-full shadow-sm cursor-pointer transition-transform duration-200`}
-                                          // Add pointer cursor
                                           style={{ cursor: 'pointer' }}
                                         >
                                           {collaborator.spaceRole}
@@ -1645,7 +1658,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
                                               }`}
-                                              // Add pointer cursor
                                               style={{ cursor: 'pointer' }}
                                             >
                                               Viewer
@@ -1658,7 +1670,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
                                               }`}
-                                              // Add pointer cursor
                                               style={{ cursor: 'pointer' }}
                                             >
                                               Editor
@@ -1671,7 +1682,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                   ? 'text-gray-300 hover:bg-purple-900/20 hover:text-purple-400'
                                                   : 'text-gray-700 hover:bg-purple-50 hover:text-purple-600'
                                               }`}
-                                              // Add pointer cursor
                                               style={{ cursor: 'pointer' }}
                                             >
                                               Admin
@@ -1694,7 +1704,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                             : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
                                         }`}
                                         title="Remove collaborator"
-                                        // Add pointer cursor
                                         style={{ cursor: 'pointer' }}
                                       >
                                         <X className="w-4 h-4" />
