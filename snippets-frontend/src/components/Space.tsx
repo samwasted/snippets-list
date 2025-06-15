@@ -11,6 +11,7 @@ import { motion, animate } from "framer-motion";
 import { useSpaceWebSocket } from "./useSpaceWebSocket";
 import useDarkMode from "./useDarkMode";
 import type { TagColorMenuState, Box as BoxType } from "./types";
+import { colors } from "./types";
 
 // Type definitions
 interface Snippet {
@@ -817,7 +818,7 @@ export default function Space() {
       description: "Click to edit this snippet",
       code: "// Add your code here",
       tags: [],
-      color: "bg-blue-400",
+      color: colors[Math.ceil(Math.random()*10)],
       x: Math.round(Math.random() * 400 + 200),
       y: Math.round(Math.random() * 400 + 200),
       spaceId: spaceId

@@ -724,7 +724,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <motion.div
         variants={sidebarVariants}
         animate={isCollapsed ? "collapsed" : "expanded"}
-        className={`fixed right-4 top-20 bottom-4 rounded-xl shadow-2xl sm:h-[90vh] h-[80vh] flex z-50 flex-col border overflow-hidden transition-colors duration-300 ${
+        className={`fixed right-4 top-20 bottom-4 rounded-xl shadow-2xl sm:h-[90vh] h-[85vh] flex z-50 flex-col border overflow-hidden transition-colors duration-300 ${
           isDarkMode
             ? 'bg-gray-800 border-gray-700'
             : 'bg-white border-gray-100'
@@ -1188,7 +1188,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <p className={`text-xs mb-3 transition-colors duration-300 ${
                         isDarkMode ? 'text-gray-400' : 'text-gray-500'
                       }`}>
-                        Right-click to change tag color
+                        Right-click/hold to change color of boxes of similar tag
                       </p>
                       
                       <div className="flex flex-wrap gap-2">
