@@ -5,7 +5,7 @@ A powerful, collaborative code snippets management platform with real-time colla
 🌐 **Live Demo**: [https://snippets-list.vercel.app](https://snippets-list.vercel.app)
 
 
-<img width="1271" alt="dashboard" src="https://github.com/user-attachments/assets/15cc662f-a22d-4bbd-b9d5-036af009984e" />
+<img alt="dashboard" src="https://github.com/user-attachments/assets/15cc662f-a22d-4bbd-b9d5-036af009984e" />
 *Main dashboard with multiple snippet spaces*
 
 ## ✨ Features
