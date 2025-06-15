@@ -317,4 +317,7 @@ CodeMirror integration provides syntax highlighting for 50+ programming language
   <strong>Made by samwasted for CSoC 25</strong>
 </div>
 
-![banner](https://github.com/user-attachments/assets/b26a439a-e16b-4a84-bb2b-f032dbf7262a)
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/b26a439a-e16b-4a84-bb2b-f032dbf7262a" alt="banner" />
+</div>
