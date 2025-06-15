@@ -42,7 +42,8 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Expandable Modals**: Resizable edit interfaces
 - **Smooth Animations**: Framer Motion powered transitions
 - **Vibey UI**: Modern, intuitive design language
-
+![darklightmode](https://github.com/user-attachments/assets/b785b5a6-5721-4b66-ba52-f8e61d0b4901)
+<br>
 ![tagcolormenu](https://github.com/user-attachments/assets/83eb1614-64fc-419b-aac7-42f837424d2a)
 <br>
 *Tag-based color coding and customization options*
@@ -142,8 +143,6 @@ The application consists of two separate repositories:
 
 Clone both repositories and follow their respective setup instructions to get started with development.
 
-![Development Setup](screenshots/development-setup.png)
-*Development environment in action*
 
 ## 🎮 Usage
 
@@ -158,9 +157,6 @@ Clone both repositories and follow their respective setup instructions to get st
 - **Drag & Drop**: Drop code files directly onto the canvas
 - **Edit Mode**: Click any snippet to edit code, description, or styling
 
-![Adding Snippets](screenshots/add-snippet-flow.gif)
-*Step-by-step snippet creation process*
-
 ### Collaboration
 1. Open space settings from the sidebar
 2. Add collaborators by username
@@ -168,8 +164,6 @@ Clone both repositories and follow their respective setup instructions to get st
 4. Share the space URL with your team
 5. Click on any collaborator to view their profile and public spaces
 
-![Collaboration Setup](screenshots/collaboration-setup.png)
-*Adding collaborators by username and managing permissions*
 
 ## 🔧 API Routes
 
@@ -318,4 +312,4 @@ CodeMirror integration provides syntax highlighting for 50+ programming language
   <strong>Made by samwasted for CSoC 25</strong>
 </div>
 
-![Banner GIF](screenshots/banner.gif)
+![banner](https://github.com/user-attachments/assets/b26a439a-e16b-4a84-bb2b-f032dbf7262a)
