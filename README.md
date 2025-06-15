@@ -26,6 +26,9 @@ A powerful, collaborative code snippets management platform with real-time colla
 - Role-based access control (Admin, Editor, Viewer)
 - Admin dashboard for user and content management
 <img width="500" alt="admindashboard" src="https://github.com/user-attachments/assets/d9534878-cad7-491f-9155-ccea8948ba5d" />
+<br>
+
+
 ### 🏢 Spaces Management
 
 
