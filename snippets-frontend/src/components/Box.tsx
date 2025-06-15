@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -38,6 +38,14 @@ const Box: React.FC<BoxProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
+  // Handle title click to open edit modal
+  const handleTitleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    console.log('Title clicked:', box.title); // Debug log
+    onStartEditing(box);
+  }, [box, onStartEditing]);
+
   // dnd-kit draggable hook with proper coordinate handling
   const {
     attributes,
@@ -54,7 +62,6 @@ const Box: React.FC<BoxProps> = ({
   });
 
   // Convert dnd-kit transform to CSS transform with scale compensation
-  // FIXED: Removed opacity hiding - keep the original element visible during drag
   const style = {
     transform: CSS.Transform.toString({
       x: transform ? transform.x / scale : 0,
@@ -68,8 +75,7 @@ const Box: React.FC<BoxProps> = ({
     transformOrigin: 'center center',
     willChange: isDragging || isHovered ? 'transform' : 'auto',
     zIndex: isDragging ? 1000 : isHovered ? 10 : 1,
-    touchAction: 'none'
-    // REMOVED: opacity: isDragging ? 0 : 1
+    touchAction: 'manipulation' // Allow touch manipulation
   };
 
   // Code file detection
@@ -169,7 +175,7 @@ const Box: React.FC<BoxProps> = ({
   return (
     <div
       ref={setNodeRef}
-      className={`absolute w-48 h-40 rounded-lg shadow-lg z-50 flex flex-col cursor-pointer select-none transition-all duration-300 ease-out ${
+      className={`absolute w-48 h-40 rounded-lg shadow-lg z-50 flex flex-col select-none transition-all duration-300 ease-out ${
         box.color
       } ${
         isDragOver ? 'ring-2 ring-white ring-opacity-50' : ''
@@ -179,10 +185,9 @@ const Box: React.FC<BoxProps> = ({
       
       style={style}
       
-      {...listeners}
+      // Remove listeners from main div - they interfere with title clicks
       {...attributes}
       
-      onDoubleClick={() => onStartEditing(box)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       
@@ -192,12 +197,29 @@ const Box: React.FC<BoxProps> = ({
       onDrop={handleDrop}
     >
       <div className="p-3 flex-1 flex flex-col relative">
-        <div className={`font-semibold text-center mb-2 truncate transition-all duration-300 ${
-          isDarkMode ? 'text-white' : 'text-white'
-        } ${
-          isHovered ? 'text-shadow-lg scale-105' : ''
-        }`}>
+        {/* Clickable Title - NO drag listeners here */}
+        <div 
+          onClick={handleTitleClick}
+          className={`font-semibold text-center mb-2 truncate transition-all duration-300 cursor-pointer hover:scale-105 hover:underline ${
+            isDarkMode ? 'text-white hover:text-blue-200' : 'text-white hover:text-blue-100'
+          } ${
+            isHovered ? 'text-shadow-lg scale-105' : ''
+          }`}
+          title="Click to edit this box"
+        >
           {box.title}
+        </div>
+
+        {/* Drag Handle - separate from title */}
+        <div 
+          {...listeners}
+          className="absolute top-1 right-1 w-6 h-6 cursor-move opacity-50 hover:opacity-100 transition-opacity duration-200 flex items-center justify-center"
+          title="Drag to move"
+        >
+          <div className="w-3 h-3 bg-white/60 rounded-sm flex flex-col justify-center items-center">
+            <div className="w-1 h-1 bg-white rounded-full mb-px"></div>
+            <div className="w-1 h-1 bg-white rounded-full"></div>
+          </div>
         </div>
         
         {box.description && (

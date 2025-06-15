@@ -92,6 +92,9 @@ importers:
       tailwindcss:
         specifier: ^4.1.10
         version: 4.1.10
+      use-double-tap:
+        specifier: ^1.3.7
+        version: 1.3.7(react@19.1.0)
     devDependencies:
       '@eslint/js':
         specifier: ^9.25.0
@@ -2335,6 +2338,11 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  use-double-tap@1.3.7:
+    resolution: {integrity: sha512-OOgpAtT1U96D8jX6w/ODWhLMDpS92wVYIQyQQ0hDnOgLrPHNrkYSjTnkoPT41GaO30xF5OBJ7mAxF34sHxnLng==}
+    peerDependencies:
+      react: '>=16.8.0'
 
   use-isomorphic-layout-effect@1.2.1:
     resolution: {integrity: sha512-tpZZ+EX0gaghDAiFR37hj5MgY6ZN55kLiPkJsKxBMZ6GZdOSPJXiOzPM984oPYZ5AnehYx5WQp1+ME8I/P/pRA==}
@@ -4865,6 +4873,10 @@ snapshots:
       react: 19.1.0
     optionalDependencies:
       '@types/react': 19.1.8
+
+  use-double-tap@1.3.7(react@19.1.0):
+    dependencies:
+      react: 19.1.0
 
   use-isomorphic-layout-effect@1.2.1(@types/react@19.1.8)(react@19.1.0):
     dependencies:

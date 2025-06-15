@@ -137,3 +137,6 @@ button:focus-visible {
 .box-component[data-dragging="true"] * {
   will-change: transform;
 }
+*{
+  touch-action: manipulation;
+}

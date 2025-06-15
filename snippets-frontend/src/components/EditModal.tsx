@@ -278,26 +278,27 @@ const EditModal: React.FC<EditModalProps> = React.memo(({
                 </button>
               </div>
 
+              {/* Updated Tags Section with Purple Styling */}
               <div className="flex flex-wrap gap-2">
                 {editTags.map(tag => (
                   <span
                     key={tag}
-                    className={`inline-flex items-center text-sm px-3 py-1 rounded-full border transition-all duration-200 hover:scale-105 ${isDarkMode
-                      ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 text-purple-300 border-purple-700/50'
-                      : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border-purple-200'
-                      }`}
+                    className={`inline-flex items-center text-sm px-3 py-1 rounded-full transition-all duration-200 hover:scale-105 ${
+                      isDarkMode
+                        ? 'bg-purple-900/40 text-purple-200 border border-purple-700/60 hover:bg-purple-800/50'
+                        : 'bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200'
+                    }`}
                   >
                     {tag}
                     <button
                       onClick={() => onRemoveTag(tag)}
-                      className={`ml-2 transition-colors duration-200 hover:scale-110 ${isDarkMode
-                        ? 'text-purple-400 hover:text-red-400'
-                        : 'text-purple-600 hover:text-red-600'
-                        }`}
+                      className={`ml-2 transition-colors duration-200 hover:scale-110 ${
+                        isDarkMode
+                          ? 'text-purple-300 hover:text-red-400'
+                          : 'text-purple-600 hover:text-red-600'
+                      }`}
                     >
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
+                      ✕
                     </button>
                   </span>
                 ))}

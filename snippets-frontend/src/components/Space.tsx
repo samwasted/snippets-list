@@ -815,7 +815,7 @@ export default function Space() {
 
     const newSnippetData = {
       title: `Box`,
-      description: "Double-click to edit this snippet",
+      description: "Click title to edit this snippet",
       code: "// Add your code here",
       tags: [],
       color: colors[Math.ceil(Math.random() * 10)],
@@ -1407,6 +1407,7 @@ export default function Space() {
           onColorChange={setEditColor}
           onTagsChange={setEditTags}
           onCodeChange={setEditCode}
+          // getAllTags={getAllTags}
           onCodeLanguageChange={setEditCodeLanguage}
           onNewTagChange={setNewTag}
           onAddTag={addTag}
