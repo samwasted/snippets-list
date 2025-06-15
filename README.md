@@ -4,7 +4,8 @@ A powerful, collaborative code snippets management platform with real-time colla
 
 🌐 **Live Demo**: [https://snippets-list.vercel.app](https://snippets-list.vercel.app)
 
-![Hero Screenshot](screenshots/hero-dashboard.png)
+
+<img width="1271" alt="dashboard" src="https://github.com/user-attachments/assets/15cc662f-a22d-4bbd-b9d5-036af009984e" />
 *Main dashboard with multiple snippet spaces*
 
 ## ✨ Features
@@ -16,7 +17,7 @@ A powerful, collaborative code snippets management platform with real-time colla
 - **Real-time Collaboration**: Live editing with WebSocket connections
 - **Responsive Design**: Complete functionality across desktop and mobile devices
 
-![Canvas Interface](screenshots/canvas-interface.png)
+![canvas](https://github.com/user-attachments/assets/1b657c73-d020-4731-bd60-806125b508fc)
 *Interactive canvas with moveable snippet boxes*
 
 ### 🔐 Authentication & Security
